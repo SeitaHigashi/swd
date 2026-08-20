@@ -211,3 +211,82 @@ serve the plugin's JS/CSS to the WebView (a bare filesystem path won't
 resolve, and `frontendDist` is a fixed static directory) — deliberately
 left for a later change once the plugin contract above has proven itself
 against a few more built-in cards.
+
+## 2026-08-20 — External plugin loading (stage 2)
+
+**Goal:** let a plugin live outside the repo entirely — dropped into a
+directory on disk — and be discovered and mounted the same way a built-in
+one is, closing out the "deliberately deferred" item above.
+
+### What changed
+
+Added `src-tauri/src/plugins.rs`: a `list_plugins` command that scans
+`<app data dir>/plugins/*/plugin.json` (skipping any entry with a missing
+or malformed manifest, or whose `id` doesn't match its own directory name,
+rather than failing the whole scan), plus `resolve_plugin_file` which maps
+`swd-plugin://<id>/<path>` to an absolute path *inside that plugin's own
+directory only* — canonicalizes and checks `starts_with` the plugin root
+so a `../` in a manifest or import can't read another plugin's files or
+anything else on disk.
+
+`lib.rs` registers `swd-plugin` via `register_uri_scheme_protocol` to
+actually serve those files (content-type guessed from extension), and
+`core/loader.js` calls `list_plugins`, then `import()`s each manifest's
+`entry` file over that protocol and merges the result into the same list
+`mountPlugin` already knew how to handle for built-ins — no changes needed
+in `plugin-host.js` at all, confirming the stage-1 contract was the right
+shape.
+
+An external plugin directory looks like:
+
+```
+<app data dir>/plugins/<id>/
+├── plugin.json   # { "id": "<id>", "name": "...", "entry": "index.js" }
+├── index.js      # default-exports the same { id, position, styles,
+│                 #   permissions, mount(ctx) } shape as a built-in plugin
+└── style.css      # (or whatever plugin.js's `styles` array references)
+```
+
+`<app data dir>` is `%APPDATA%\dev.seita.swd\` on Windows
+(`tauri::path::PathResolver::app_data_dir`).
+
+### The bug that ate most of this session: missing CORS header
+
+The custom protocol worked (files served, correct bytes) but the frontend's
+`import()` of `swd-plugin://.../index.js` still silently rejected. Root
+cause: the main page's origin is `http://tauri.localhost`, which differs
+from a registered custom protocol's origin — per Tauri's own docs for
+`register_uri_scheme_protocol`, this makes any `fetch`/dynamic `import()`
+of it a cross-origin request, and the WebView drops the response after
+receiving it unless the response carries `Access-Control-Allow-Origin`.
+The request reached the Rust handler and got a 200 either way, which is
+why watching for the request to arrive (easy to check by logging in the
+protocol handler) gave a false sense that it was working — the failure
+happens client-side, after the response comes back. Fixed by adding
+`Access-Control-Allow-Origin: *` to every response from the handler; safe
+here since the protocol only ever serves files the user chose to put in
+their own plugins directory, nothing sensitive.
+
+Two things made this slow to pin down and are worth remembering for next
+time:
+
+- **Debugging a frameless, `focus: false`, click-through-except-cards
+  window is hard** — right-click-to-inspect doesn't reach most of the
+  window, and there's no titlebar to grab for a devtools shortcut. The
+  workaround was a temporary `debug_log` Tauri command that `eprintln!`s
+  whatever string the frontend hands it, called from `window.onerror`,
+  `unhandledrejection`, and the plugin-host's catch blocks — piping
+  browser-side errors into the same terminal already showing the Rust
+  logs. Removed once the fix was confirmed; recreate it the same way if
+  this needs debugging again rather than fighting the window chrome.
+- **A visual "it's not showing up" symptom had a second, unrelated cause
+  layered on top**: even after the CORS fix, a screenshot still didn't
+  show the card, because the test plugin's position happened to sit
+  directly under another already-open foreground window (Spotify). This
+  desktop-pinned window is *deliberately* layered below normal app
+  windows (see the very first history entry above), so anything on top of
+  it will occlude the widget - expected behavior, not a regression. Cost
+  real time before being recognized as "logs already proved this works,
+  the screenshot is just looking at the wrong thing." When a card's logs
+  say it mounted successfully but a screenshot disagrees, check for
+  window occlusion before doubting the logs.

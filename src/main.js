@@ -1,7 +1,7 @@
 // Host bootstrap. This file used to import every card module directly and
 // wire it up by hand; now it just asks the plugin loader what to mount and
-// hands each one to the plugin host. Adding, removing, or (eventually)
-// externally installing a card no longer touches this file at all.
+// hands each one to the plugin host. Adding, removing, or externally
+// installing a card no longer touches this file at all.
 
 import { loadPlugins } from "./core/loader.js";
 import { mountPlugin } from "./core/plugin-host.js";

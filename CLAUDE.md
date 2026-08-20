@@ -36,11 +36,12 @@ any new frontend module.
 
 ```
 src-tauri/src/
-├── lib.rs          # setup: window sizing/position, module wiring
+├── lib.rs          # setup: window sizing/position, module wiring, swd-plugin:// protocol
 ├── window_layer.rs # WorkerW z-order pinning (Windows only)
 ├── hit_test.rs      # click-through region polling (Windows only)
 ├── system_info.rs  # CPU/memory/network sampling → `sys://stats` event
-└── media.rs          # Windows Media Transport Controls → `media://now-playing` (Windows only)
+├── media.rs          # Windows Media Transport Controls → `media://now-playing` (Windows only)
+└── plugins.rs          # external plugin discovery (list_plugins) + safe file resolution
 
 src/
 ├── index.html         # empty <div class="dashboard"> — cards are mounted at runtime
@@ -90,6 +91,28 @@ If the card needs new data from Rust: prefer emitting a Tauri event from a
 background thread (like `system_info.rs` and `media.rs` do) over a
 request/response command, unless the frontend is asking for something
 one-shot (like `media.rs`'s transport controls, which are plain commands).
+
+### Installing an external plugin
+
+A plugin doesn't have to live in this repo. Drop a directory at
+`%APPDATA%\dev.seita.swd\plugins\<id>\` (the same `<id>` used both as the
+directory name and inside the manifest — a mismatch gets the plugin
+skipped, see `plugins.rs`):
+
+```
+plugins/<id>/
+├── plugin.json   # { "id": "<id>", "name": "...", "entry": "index.js" }
+├── index.js      # default export: same { id, position, styles,
+│                 #   permissions, mount(ctx) } shape as a built-in plugin
+└── style.css      # whatever plugin.json's `entry` module references
+```
+
+Restart the app (or wherever a future "reload plugins" affordance lands);
+`core/loader.js` calls `list_plugins` on startup and `import()`s each
+manifest's `entry` file over the `swd-plugin://<id>/<path>` protocol
+registered in `lib.rs`. See `docs/history.md` under "External plugin
+loading (stage 2)" for why that protocol's responses need a CORS header
+and how path traversal is blocked.
 
 ## Gotchas (things that will bite you if you don't know them)
 
