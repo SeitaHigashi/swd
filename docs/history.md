@@ -396,3 +396,33 @@ only treats the gesture as a real drag (switching off right-anchoring,
 updating position) once the pointer has moved past that threshold from
 `pointerdown`; `pointerup` only saves if that threshold was crossed. A
 plain click no longer touches saved position state at all.
+
+## 2026-08-20 — External plugin import retries once (cold-launch flakiness)
+
+**Symptom:** after a fresh install (or reinstall), the very first launch
+would sometimes show all four built-in cards correctly but no external
+plugin at all - no error visible, `list_plugins` and the `swd-plugin://`
+protocol both later confirmed fully healthy via debug logging. Simply
+killing and relaunching the exact same installed exe fixed it every
+time, with no code or data changes in between.
+
+**Diagnosis:** narrowed down by comparing a from-source debug build
+against the actual installed exe side by side - both ran the identical
+code and both eventually worked, but the *first* launch of a freshly
+installed (unsigned, previously-unseen-by-Windows) exe was the
+common thread across every failure. The leading theory: Windows
+Defender/SmartScreen's first-run reputation check on a brand new binary
+adds enough one-time latency to WebView2's environment spin-up that the
+very first `swd-plugin://` request (triggered by `loader.js`'s dynamic
+`import()`) fails, even though the protocol handler itself is registered
+correctly and every other IPC call (`list_plugins` included) went
+through fine. A cold-start race, not a logic bug - `list_plugins`
+succeeding while the subsequent `import()` over a different code path
+fails is the signature of "the custom protocol specifically wasn't
+ready yet," not "nothing was ready yet."
+
+**Fix:** `core/loader.js`'s `importWithRetry` retries a failed external
+plugin import exactly once, after a 1.5s delay, before giving up and
+logging it as a real failure. This only ever adds latency on the rare
+first-launch case; a healthy import succeeds immediately and never sees
+the retry path.

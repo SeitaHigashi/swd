@@ -32,6 +32,28 @@ function pluginFileUrl(id, relativePath) {
   return `http://swd-plugin.localhost/${id}/${relativePath.replace(/^\//, "")}`;
 }
 
+const IMPORT_RETRY_DELAY_MS = 1500;
+
+/**
+ * A cold app launch (freshly installed, unsigned exe - especially the
+ * very first run Windows Defender/SmartScreen hasn't seen before) can
+ * transiently fail the first request over the `swd-plugin://` custom
+ * protocol even though everything is registered correctly - observed as
+ * every built-in card mounting fine while every external plugin silently
+ * fails to import, recovering on its own after simply restarting the app.
+ * Retrying the import once after a short delay has reliably recovered
+ * from this in practice, so do that automatically instead of requiring
+ * the user to notice and relaunch.
+ */
+async function importWithRetry(entryUrl) {
+  try {
+    return await import(entryUrl);
+  } catch {
+    await new Promise((resolve) => setTimeout(resolve, IMPORT_RETRY_DELAY_MS));
+    return import(entryUrl);
+  }
+}
+
 /**
  * Asks the Rust side what's installed under the plugins directory, then
  * dynamic-imports each one's entry point. A plugin that fails to load
@@ -53,7 +75,7 @@ async function loadExternalPlugins() {
   for (const manifest of manifests) {
     const entryUrl = pluginFileUrl(manifest.id, manifest.entry);
     try {
-      const module = await import(entryUrl);
+      const module = await importWithRetry(entryUrl);
       if (!module.default) {
         throw new Error("module has no default export");
       }
