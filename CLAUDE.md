@@ -32,6 +32,29 @@ hot-reload for Rust). Frontend files under `src/` are served as-is with no
 bundler — see the "no bundler" gotcha below before editing `src/main.js` or
 any new frontend module.
 
+### Delivering a change to the installed app
+
+The user runs an installed build (`%LOCALAPPDATA%\swd\swd.exe`, launched
+via autostart), not `npm run dev`'s debug build — it only picks up
+`src-tauri/` or `src/` changes when reinstalled. **After finishing a unit
+of work that touches `src-tauri/` or `src/` (a feature, a fix — not every
+intermediate edit), rebuild and hand over a fresh installer as part of
+calling that work done**, rather than leaving the user on a stale build:
+
+```bash
+npm run build   # produces both installers under src-tauri/target/release/bundle/
+```
+
+Send both `bundle/nsis/swd_<version>_x64-setup.exe` and
+`bundle/msi/swd_<version>_x64_en-US.msi` to the user. Remind them to close
+the running instance first — Windows installers can't overwrite a running
+exe.
+
+Exception: a fix that lives entirely in an *external* plugin under
+`%APPDATA%\dev.seita.swd\plugins\<id>\` (see "Installing an external
+plugin" below) never touches this repo, so no rebuild or reinstall is
+needed — editing that plugin's files and restarting the app is enough.
+
 ## Architecture
 
 ```
