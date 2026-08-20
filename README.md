@@ -1,5 +1,7 @@
 # SWD (Seita Windows Dashboard)
 
+<img src="docs/images/icon.png" alt="SWD icon" width="128" height="128" />
+
 An always-on Windows 11 desktop widget. Renders a glass-morphism system
 dashboard (clock, CPU/memory, network, now-playing media, plus whatever
 plugins are installed) pinned above the desktop wallpaper (Wallpaper
