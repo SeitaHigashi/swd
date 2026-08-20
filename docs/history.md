@@ -143,3 +143,71 @@ Two implementation details worth remembering:
   idea `tauri-plugin-wallpaper` uses — not implemented yet.
 - **No GPU usage.** `sysinfo` doesn't expose GPU metrics; would need PDH's
   `GPU Engine` performance counters or a vendor SDK (NVML etc.).
+
+## 2026-08-20 — Frontend refactored into a plugin system (stage 1)
+
+**Goal:** make cards extensible without touching core files, while keeping
+the built-in cards (clock, system monitor, network, media) as first-class
+citizens rather than second-class "example plugins."
+
+### What changed
+
+`src/modules/*.js` (one file per card, each hand-wired into `main.js`) was
+replaced with `src/core/*` (generic plugin host) + `src/plugins/*/plugin.js`
+(one directory per card, each exporting `{ id, position, styles, mount(ctx)
+}`). `index.html` no longer contains any card markup — `core/plugin-host.js`
+creates the `.glass-card` element and injects the plugin's stylesheet at
+mount time. `main.js` shrank to: ask `core/loader.js` for the plugin list,
+mount each one, start the hit-region watcher.
+
+Drag handling, position persistence (`core/layout.js`, unchanged in
+behavior from the old `modules/layout.js`), and hit-region sync remained
+generic over `.glass-card` — same as before, just relocated.
+
+### Why an event bus instead of `listen()` per plugin
+
+The old code had `main.js` call `listen("sys://stats", ...)` once and fan
+the payload out to `system-monitor.js` and `network.js` by hand. Once cards
+are independent plugins, nothing else can do that fan-out for them. Rather
+than have every plugin subscribing to `sys://stats` open its own Tauri IPC
+listener (redundant, and no clean way to unsubscribe on unmount),
+`core/event-bus.js` opens exactly one `listen()` per event name and
+dispatches to all subscribers. It also caches the last payload per event
+and replays it to a plugin that mounts between two ticks, so a
+dynamically-added card (stage 2) doesn't sit at "--" for a full sample
+interval.
+
+### Why hit-region sync moved from `resize`-only to a `MutationObserver`
+
+The old `syncHitRegions()` was called after the fixed set of cards in
+`index.html` had already loaded, then re-run on window `resize` and a
+`ResizeObserver` on `<body>`. That's fine when the card set never changes
+after startup. Once cards can be mounted/unmounted at runtime (stage 2:
+externally-installed plugins, or any future "disable a card" UI), the host
+needs to notice `.glass-card` elements appearing or disappearing from the
+DOM, not just resizing — hence `core/hit-regions.js` now also watches
+`.dashboard` with a `MutationObserver(childList)`.
+
+### Why `ctx.invoke` is permission-scoped per plugin, not a passthrough
+
+`withGlobalTauri: true` means any script in the WebView can already reach
+`window.__TAURI__` directly, so `ctx.invoke`'s allowlist (declared as
+`permissions.invoke` in each plugin's manifest) is not a real security
+boundary against a malicious plugin — a plugin that wants to bypass it can
+just call `window.__TAURI__.core.invoke` itself. It exists to catch
+*accidents*: a typo'd command name, or a plugin calling a command it forgot
+to declare, fails loudly instead of silently doing something the plugin
+author didn't intend. `set_hit_regions` is hard-blocked in the host
+regardless of what a plugin declares, since letting a card claim its own
+hit-test rectangle would let it grab mouse input outside its own bounds.
+
+### Deliberately deferred: loading plugins from outside the repo
+
+`core/loader.js` currently returns a hardcoded list of the four built-in
+plugins (statically `import`ed, so no bundler/dynamic-loading concerns).
+Loading a plugin from e.g. `%APPDATA%\dev.seita.swd\plugins\` needs a
+Rust-side directory listing command and a custom URI scheme protocol to
+serve the plugin's JS/CSS to the WebView (a bare filesystem path won't
+resolve, and `frontendDist` is a fixed static directory) — deliberately
+left for a later change once the plugin contract above has proven itself
+against a few more built-in cards.

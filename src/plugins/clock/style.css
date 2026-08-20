@@ -1,0 +1,14 @@
+#clock-card .clock {
+  font-size: 40px;
+  font-weight: 300;
+  color: var(--swd-accent);
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+  line-height: 1.1;
+}
+
+#clock-card .date {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--swd-text-dim);
+}

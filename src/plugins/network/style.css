@@ -1,0 +1,33 @@
+#network-card .net-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 8px;
+}
+
+#network-card .net-row:last-child {
+  margin-bottom: 0;
+}
+
+#network-card .net-arrow {
+  font-size: 11px;
+  width: 14px;
+  text-align: center;
+}
+
+#network-card .net-arrow.up {
+  color: var(--swd-accent-warn);
+}
+
+#network-card .net-arrow.down {
+  color: var(--swd-accent);
+}
+
+#network-card .net-graph {
+  display: block;
+  width: 100%;
+  height: 56px;
+  margin-top: 12px;
+}

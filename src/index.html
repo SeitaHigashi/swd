@@ -8,60 +8,11 @@
     <script type="module" src="/main.js" defer></script>
   </head>
   <body>
-    <div class="dashboard">
-      <section class="glass-card" id="clock-card" data-card>
-        <p class="clock" id="clock">--:--:--</p>
-        <p class="date" id="date">----年--月--日（-）</p>
-      </section>
-
-      <section class="glass-card" id="system-monitor-card" data-card>
-        <h2>System</h2>
-        <div class="metric">
-          <div class="metric-label">
-            <span>CPU</span>
-            <span id="cpu-value">--%</span>
-          </div>
-          <div class="meter"><div class="meter-fill" id="cpu-bar"></div></div>
-          <canvas id="cpu-graph" class="metric-graph" width="256" height="36"></canvas>
-        </div>
-        <div class="metric">
-          <div class="metric-label">
-            <span>Memory</span>
-            <span id="mem-value">-- / -- GB</span>
-          </div>
-          <div class="meter"><div class="meter-fill" id="mem-bar"></div></div>
-          <canvas id="mem-graph" class="metric-graph" width="256" height="36"></canvas>
-        </div>
-      </section>
-
-      <section class="glass-card" id="network-card" data-card>
-        <h2>Network</h2>
-        <div class="net-row">
-          <span class="net-arrow up">&#x25B2;</span>
-          <span id="net-up">-- KB/s</span>
-        </div>
-        <div class="net-row">
-          <span class="net-arrow down">&#x25BC;</span>
-          <span id="net-down">-- KB/s</span>
-        </div>
-        <canvas id="net-graph" class="net-graph" width="256" height="56"></canvas>
-      </section>
-
-      <section class="glass-card" id="media-card" data-card>
-        <h2>Now Playing</h2>
-        <div class="media-body">
-          <img id="media-thumb" class="media-thumb" alt="" hidden />
-          <div class="media-info">
-            <p class="media-title" id="media-title">再生中のメディアはありません</p>
-            <p class="media-artist" id="media-artist"></p>
-          </div>
-        </div>
-        <div class="media-controls">
-          <button id="media-prev" class="media-btn" type="button" aria-label="前へ">&#x23EE;</button>
-          <button id="media-toggle" class="media-btn media-btn-primary" type="button" aria-label="再生/一時停止">&#x23EF;</button>
-          <button id="media-next" class="media-btn" type="button" aria-label="次へ">&#x23ED;</button>
-        </div>
-      </section>
-    </div>
+    <!--
+      Cards are no longer written here: each one is a plugin (see
+      src/plugins/*/plugin.js) that the host mounts into this container at
+      runtime. See src/core/plugin-host.js and src/core/loader.js.
+    -->
+    <div class="dashboard"></div>
   </body>
 </html>

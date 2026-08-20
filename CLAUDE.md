@@ -43,33 +43,48 @@ src-tauri/src/
 └── media.rs          # Windows Media Transport Controls → `media://now-playing` (Windows only)
 
 src/
-├── index.html
-├── style.css        # glass-morphism base styles + one CSS rule per card's default position
-├── main.js           # drag handling, hit-region sync, event wiring
-└── modules/
-    ├── clock.js
-    ├── system-monitor.js  # CPU/mem card, uses sparkline.js
-    ├── network.js          # network card, uses sparkline.js
-    ├── media.js             # now-playing card
-    ├── sparkline.js          # shared canvas line-graph renderer
-    └── layout.js              # localStorage position persistence
+├── index.html         # empty <div class="dashboard"> — cards are mounted at runtime
+├── style.css          # glass-morphism base styles only, no per-card rules
+├── main.js            # bootstrap: loadPlugins() → mountPlugin() → startHitRegionWatcher()
+├── core/               # generic plugin host, not card-specific
+│   ├── plugin-host.js  # mountPlugin(): builds the .glass-card element, wires ctx
+│   ├── loader.js         # returns the list of plugins to mount (built-ins today)
+│   ├── event-bus.js       # one listen() per Tauri event, fanned out to subscribers
+│   ├── drag.js              # pointer-drag handling
+│   ├── hit-regions.js         # click-through region sync, MutationObserver-driven
+│   └── layout.js                # localStorage position persistence
+├── shared/
+│   └── sparkline.js    # shared canvas line-graph renderer
+└── plugins/
+    ├── clock/{plugin.js, style.css}
+    ├── system-monitor/{plugin.js, style.css}  # CPU/mem card
+    ├── network/{plugin.js, style.css}          # uses shared/sparkline.js
+    └── media/{plugin.js, style.css}             # now-playing card
 ```
 
 ### Adding a new card
 
-1. Add a `<section class="glass-card" id="my-card" data-card>` to
-   `index.html`.
-2. Give it a default position in `style.css` (`#my-card { top: …; right: …
-   }` — anchor to the right edge like the others, see "why right-anchored"
-   below).
-3. Add `src/modules/my-card.js` exporting an `init...()` that returns an
-   `onStats`-style callback, following the pattern in `network.js`.
-4. Wire it into `main.js`: import, call `init...()` in the
-   `DOMContentLoaded` handler, subscribe to whatever event it needs.
+Each card is a self-contained plugin — see `docs/history.md` under
+"Frontend refactored into a plugin system" for why it's shaped this way
+before changing `core/*`.
+
+1. Create `src/plugins/my-card/plugin.js` exporting a default object:
+   `{ id, name, position: { top, right }, styles: ["./style.css"],
+   permissions: { invoke: [...] }, mount(ctx) { ... } }`. `permissions` is
+   only needed if the plugin calls `ctx.invoke(...)`.
+2. Create `src/plugins/my-card/style.css`, scoping every rule under
+   `#my-card` (the plugin's `id`) so it can't leak into other cards. Anchor
+   the default `position` to the right edge like the others — see "why
+   right-anchored" below.
+3. In `mount(ctx)`, build the card's contents with `ctx.root.innerHTML =`
+   (or DOM APIs), read elements back with `ctx.el(selector)` (scoped to
+   this card only), and subscribe to data with `ctx.on("sys://stats", cb)`.
+4. Register it in `src/core/loader.js`'s `BUILT_IN_PLUGINS` list (import +
+   one array entry). Nothing in `main.js` needs to change.
 
 Drag handling, click-through hit-testing, and position persistence are all
-generic over `.glass-card` + a unique `id` — you get them for free, no
-per-card code needed.
+generic over `.glass-card` — handled by `core/plugin-host.js` — so you get
+them for free, no per-card code needed.
 
 If the card needs new data from Rust: prefer emitting a Tauri event from a
 background thread (like `system_info.rs` and `media.rs` do) over a
@@ -83,7 +98,8 @@ one-shot (like `media.rs`'s transport controls, which are plain commands).
   WebView and kill the entire module script with no visible error unless
   you have devtools open. Use `window.__TAURI__.*` (enabled via
   `withGlobalTauri: true` in `tauri.conf.json`) instead. Plain relative
-  imports between files in `src/modules/` are fine.
+  imports between files under `src/core/`, `src/shared/`, and
+  `src/plugins/` are fine.
 - **`SetWindowPos`'s `hWndInsertAfter` places the window *behind* (below)
   the reference window**, not in front of it. Getting this backwards is
   the exact bug that shipped once already (see history.md) — the symptom
