@@ -333,3 +333,31 @@ first run, stores the token in its own `ctx.storage` namespace, and polls
 `/1/devices` + `/1/appliances` every 5 minutes; it sends aircon on/off via
 `/1/appliances/{id}/aircon_settings` and other appliances' registered IR
 signals via `/1/signals/{id}/send`.
+
+## 2026-08-20 — System tray icon
+
+**Goal:** a way to quit or hide the widget without Task Manager. The main
+window has `decorations: false` and `skipTaskbar: true` (see "why
+right-anchored" era decisions in the first history entry), so there's
+never been a titlebar close button or a taskbar entry to right-click.
+
+### What changed
+
+Added `src-tauri/src/tray.rs`, using Tauri's built-in tray APIs (enabled
+via the `tray-icon` Cargo feature on the `tauri` dependency - no extra
+plugin needed, unlike `tauri-plugin-http` earlier). Built in `setup()`
+right after the window is positioned: a two-item context menu (表示/非表示
+to toggle the window, 終了 to quit) shown on left or right click, using
+`app.default_window_icon()` so it doesn't need a separate icon asset -
+same `.ico` already configured in `tauri.conf.json`'s `bundle.icon` for
+the taskbar/installer.
+
+### Verifying it worked without a visible taskbar tray
+
+Windows puts a newly-registered tray icon in the hidden/overflow area by
+default (behind the `^` chevron) unless the user drags it out - expected,
+not a bug. Confirmed the icon actually registered by checking
+`HKCU\Control Panel\NotifyIconSettings` for an entry whose
+`ExecutablePath` pointed at `swd.exe`, rather than fighting to get a
+screenshot of the overflow flyout (which auto-dismisses easily and isn't
+straightforward to keep open for a screenshot via automation).

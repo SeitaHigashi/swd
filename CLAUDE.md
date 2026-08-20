@@ -41,7 +41,8 @@ src-tauri/src/
 ├── hit_test.rs      # click-through region polling (Windows only)
 ├── system_info.rs  # CPU/memory/network sampling → `sys://stats` event
 ├── media.rs          # Windows Media Transport Controls → `media://now-playing` (Windows only)
-└── plugins.rs          # external plugin discovery (list_plugins) + safe file resolution
+├── plugins.rs          # external plugin discovery (list_plugins) + safe file resolution
+└── tray.rs               # system tray icon + context menu (show/hide, quit)
 
 src/
 ├── index.html         # empty <div class="dashboard"> — cards are mounted at runtime

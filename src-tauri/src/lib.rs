@@ -4,6 +4,7 @@ mod hit_test;
 mod media;
 mod plugins;
 mod system_info;
+mod tray;
 #[cfg(target_os = "windows")]
 mod window_layer;
 
@@ -130,6 +131,11 @@ pub fn run() {
             // Whole window click-through by default; the frontend flips this
             // per-region so only glass cards intercept the mouse.
             let _ = window.set_ignore_cursor_events(true);
+
+            // The window itself has no titlebar and no taskbar entry, so
+            // this is the only UI path to quit or toggle visibility short
+            // of Task Manager.
+            tray::setup(app.handle())?;
 
             #[cfg(target_os = "windows")]
             {
