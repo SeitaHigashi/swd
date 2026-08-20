@@ -290,3 +290,46 @@ time:
   the screenshot is just looking at the wrong thing." When a card's logs
   say it mounted successfully but a screenshot disagrees, check for
   window occlusion before doubting the logs.
+
+## 2026-08-20 — Generic outbound HTTP for plugins (added for a Nature Remo plugin)
+
+**Goal:** let a plugin (specifically: a Nature Remo smart-home control card,
+built as an external plugin per stage 2) call a cloud API from the
+frontend, without every such plugin having to write its own Rust command.
+
+### Why a WebView `fetch()` wasn't enough
+
+The Nature Remo Cloud API (`api.nature.global`) doesn't send CORS headers.
+A plain `fetch()` from the WebView is subject to the same cross-origin
+rules a real browser enforces, so - same failure mode as the `swd-plugin://`
+CORS issue in the stage-2 entry above, but this time on a server we don't
+control and can't add headers to. Two options: write a Rust proxy command
+per external API a plugin wants to call, or add one generic capability
+that lets *any* plugin make outbound HTTP requests without a browser's
+CORS checks applying at all.
+
+Went with the generic option: added the official `tauri-plugin-http`
+(registered in `lib.rs`), which implements `fetch()` as a Tauri command
+under the hood - the request happens natively in Rust and the response is
+handed back to the WebView, so there's no Origin/CORS concept in the way
+to begin with. Because `withGlobalTauri: true` is already set, this
+automatically becomes available to every plugin (built-in or external) as
+`window.__TAURI__.http.fetch`, no wiring needed per plugin.
+
+### Scoped to one domain, not wide open
+
+`capabilities/default.json` grants `http:default` with
+`"allow": [{ "url": "https://api.nature.global/*" }]` rather than an
+unrestricted allow-list. This is the one place external-plugin work
+*does* touch the repo even though the plugin itself lives entirely under
+`%APPDATA%\dev.seita.swd\plugins\`: a plugin that needs to call a new
+outbound domain needs that domain added to this scope first. Worth
+remembering when the next external plugin needs its own API - extend the
+`allow` array, don't loosen it to `*`.
+
+The nature-remo plugin itself (`plugin.json` + `index.js` + `style.css`
+under the plugins directory, not in this repo) shows a token-entry form on
+first run, stores the token in its own `ctx.storage` namespace, and polls
+`/1/devices` + `/1/appliances` every 5 minutes; it sends aircon on/off via
+`/1/appliances/{id}/aircon_settings` and other appliances' registered IR
+signals via `/1/signals/{id}/send`.

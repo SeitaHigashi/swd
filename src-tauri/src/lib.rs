@@ -40,6 +40,13 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        // Lets plugins make outbound HTTP requests (e.g. the Nature Remo
+        // Cloud API) without hitting browser CORS - a WebView `fetch()`
+        // enforces the same cross-origin rules a real browser does, but
+        // requests routed through this plugin are made natively in Rust
+        // and handed back to the WebView, so there's no origin check to
+        // fail. Scope is restricted per-domain in capabilities/default.json.
+        .plugin(tauri_plugin_http::init())
         // Serves external plugin files (see src/core/loader.js) to the
         // WebView. `<app data dir>/plugins/<id>/<path>` is exposed as
         // `swd-plugin://<id>/<path>` - a bare filesystem path won't

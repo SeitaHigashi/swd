@@ -114,6 +114,18 @@ registered in `lib.rs`. See `docs/history.md` under "External plugin
 loading (stage 2)" for why that protocol's responses need a CORS header
 and how path traversal is blocked.
 
+If the plugin needs to call an outbound HTTPS API from the frontend, use
+`window.__TAURI__.http.fetch` (from `tauri-plugin-http`, registered in
+`lib.rs`) instead of the WebView's native `fetch()` - a plain `fetch()` is
+subject to the same CORS rules a browser enforces, so it silently fails
+against any API that doesn't send CORS headers (most cloud APIs don't,
+since they're not designed to be called from a browser). The Rust-side
+plugin makes the request natively, sidestepping CORS entirely. Its target
+domain must be added to `http:default`'s `allow` list in
+`capabilities/default.json` first - this is the one place adding an
+external plugin does touch this repo. See `docs/history.md` under
+"Generic outbound HTTP for plugins" for the reasoning.
+
 ## Gotchas (things that will bite you if you don't know them)
 
 - **No bundler in `src/`.** Bare package imports
