@@ -361,3 +361,38 @@ not a bug. Confirmed the icon actually registered by checking
 `ExecutablePath` pointed at `swd.exe`, rather than fighting to get a
 screenshot of the overflow flyout (which auto-dismisses easily and isn't
 straightforward to keep open for a screenshot via automation).
+
+## 2026-08-20 — Fixed the real cause of cards "disappearing": drag saved on any click
+
+**Symptom, recurring:** a card (repeatedly nature-remo-card, the tallest
+and most content-dense one) would go missing after a reinstall or after
+normal use, even though its plugin default position no longer collided
+with anything. Each time, the proximate cause traced back to a saved
+`swd:card-position:*` localStorage entry - clearing it fixed the symptom,
+but it kept coming back.
+
+**Root cause, finally:** `core/drag.js`'s `pointerdown` handler
+unconditionally set `card.style.right = "auto"` and its `pointerup`
+handler unconditionally called `saveCardPosition`, with no check for
+whether the pointer had actually moved in between. A plain click - on the
+card's title, a text row, empty space between buttons, anywhere that
+isn't an excluded control element - has a `pointerdown`/`pointerup` pair
+with zero or near-zero movement, and was being saved as if it were an
+intentional drag to that exact (already-current) position. Harmless in
+isolation, except: the saved position is a *snapshot* of
+`getBoundingClientRect()` at that instant, and if the card's layout
+hadn't fully settled yet (still loading, or content still populating),
+that snapshot could freeze in a stale/incorrect spot - and once saved, it
+permanently overrides the plugin's own default position on every future
+launch, including after any future code fix to that default.
+
+The more content a card has (more appliance rows, more links, more
+whitespace between buttons), the more surface area for an incidental
+click to trigger this - which is exactly why nature-remo-card kept being
+the one affected once its appliance list grew.
+
+**Fix:** added a `DRAG_THRESHOLD_PX` (4px) in `drag.js` - `pointermove`
+only treats the gesture as a real drag (switching off right-anchoring,
+updating position) once the pointer has moved past that threshold from
+`pointerdown`; `pointerup` only saves if that threshold was crossed. A
+plain click no longer touches saved position state at all.
