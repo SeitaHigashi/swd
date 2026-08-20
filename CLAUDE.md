@@ -118,6 +118,10 @@ one-shot (like `media.rs`'s transport controls, which are plain commands).
 
 ### Installing an external plugin
 
+See [docs/plugin-authoring.md](docs/plugin-authoring.md) for the full
+guide to writing a plugin (the `ctx` API, styling, events, outbound HTTP,
+positioning pitfalls). Short version below.
+
 A plugin doesn't have to live in this repo. Drop a directory at
 `%APPDATA%\dev.seita.swd\plugins\<id>\` (the same `<id>` used both as the
 directory name and inside the manifest — a mismatch gets the plugin
