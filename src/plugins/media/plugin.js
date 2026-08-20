@@ -16,14 +16,14 @@ export default {
       <div class="media-body">
         <img id="media-thumb" class="media-thumb" alt="" hidden />
         <div class="media-info">
-          <p class="media-title" id="media-title">再生中のメディアはありません</p>
+          <p class="media-title" id="media-title">Nothing playing</p>
           <p class="media-artist" id="media-artist"></p>
         </div>
       </div>
       <div class="media-controls">
-        <button id="media-prev" class="media-btn" type="button" aria-label="前へ">&#x23EE;</button>
-        <button id="media-toggle" class="media-btn media-btn-primary" type="button" aria-label="再生/一時停止">&#x23EF;</button>
-        <button id="media-next" class="media-btn" type="button" aria-label="次へ">&#x23ED;</button>
+        <button id="media-prev" class="media-btn" type="button" aria-label="Previous">&#x23EE;</button>
+        <button id="media-toggle" class="media-btn media-btn-primary" type="button" aria-label="Play/Pause">&#x23EF;</button>
+        <button id="media-next" class="media-btn" type="button" aria-label="Next">&#x23ED;</button>
       </div>
     `;
 
@@ -48,7 +48,7 @@ export default {
       const hasTrack = Boolean(nowPlaying && nowPlaying.title);
 
       if (!hasTrack) {
-        if (titleEl) titleEl.textContent = "再生中のメディアはありません";
+        if (titleEl) titleEl.textContent = "Nothing playing";
         if (artistEl) artistEl.textContent = "";
         if (thumbEl) thumbEl.hidden = true;
         if (toggleBtn) toggleBtn.textContent = "⏯";

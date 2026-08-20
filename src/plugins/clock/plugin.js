@@ -10,21 +10,21 @@ export default {
   mount(ctx) {
     ctx.root.innerHTML = `
       <p class="clock" id="clock">--:--:--</p>
-      <p class="date" id="date">----年--月--日（-）</p>
+      <p class="date" id="date">---, --- --, ----</p>
     `;
 
     const timeEl = ctx.el("#clock");
     const dateEl = ctx.el("#date");
 
-    const timeFormatter = new Intl.DateTimeFormat("ja-JP", {
+    const timeFormatter = new Intl.DateTimeFormat("en-US", {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
       hour12: false,
     });
-    const dateFormatter = new Intl.DateTimeFormat("ja-JP", {
+    const dateFormatter = new Intl.DateTimeFormat("en-US", {
       year: "numeric",
-      month: "2-digit",
+      month: "short",
       day: "2-digit",
       weekday: "short",
     });

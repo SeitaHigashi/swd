@@ -291,22 +291,24 @@ time:
   say it mounted successfully but a screenshot disagrees, check for
   window occlusion before doubting the logs.
 
-## 2026-08-20 — Generic outbound HTTP for plugins (added for a Nature Remo plugin)
+## 2026-08-20 — Generic outbound HTTP for plugins
 
-**Goal:** let a plugin (specifically: a Nature Remo smart-home control card,
-built as an external plugin per stage 2) call a cloud API from the
-frontend, without every such plugin having to write its own Rust command.
+**Goal:** let a plugin (an external one, per stage 2) call a cloud API
+from the frontend, without every such plugin having to write its own
+Rust command. Motivated by a real external plugin needing to call a
+third-party HTTPS API that requires an auth token — details of that
+particular plugin aren't part of this repo.
 
 ### Why a WebView `fetch()` wasn't enough
 
-The Nature Remo Cloud API (`api.nature.global`) doesn't send CORS headers.
-A plain `fetch()` from the WebView is subject to the same cross-origin
-rules a real browser enforces, so - same failure mode as the `swd-plugin://`
-CORS issue in the stage-2 entry above, but this time on a server we don't
-control and can't add headers to. Two options: write a Rust proxy command
-per external API a plugin wants to call, or add one generic capability
-that lets *any* plugin make outbound HTTP requests without a browser's
-CORS checks applying at all.
+Most cloud APIs don't send CORS headers (they're not designed to be
+called from a browser). A plain `fetch()` from the WebView is subject to
+the same cross-origin rules a real browser enforces, so - same failure
+mode as the `swd-plugin://` CORS issue in the stage-2 entry above, but
+this time on a server we don't control and can't add headers to. Two
+options: write a Rust proxy command per external API a plugin wants to
+call, or add one generic capability that lets *any* plugin make outbound
+HTTP requests without a browser's CORS checks applying at all.
 
 Went with the generic option: added the official `tauri-plugin-http`
 (registered in `lib.rs`), which implements `fetch()` as a Tauri command
@@ -318,21 +320,11 @@ automatically becomes available to every plugin (built-in or external) as
 
 ### Scoped to one domain, not wide open
 
-`capabilities/default.json` grants `http:default` with
-`"allow": [{ "url": "https://api.nature.global/*" }]` rather than an
-unrestricted allow-list. This is the one place external-plugin work
-*does* touch the repo even though the plugin itself lives entirely under
-`%APPDATA%\dev.seita.swd\plugins\`: a plugin that needs to call a new
-outbound domain needs that domain added to this scope first. Worth
-remembering when the next external plugin needs its own API - extend the
-`allow` array, don't loosen it to `*`.
-
-The nature-remo plugin itself (`plugin.json` + `index.js` + `style.css`
-under the plugins directory, not in this repo) shows a token-entry form on
-first run, stores the token in its own `ctx.storage` namespace, and polls
-`/1/devices` + `/1/appliances` every 5 minutes; it sends aircon on/off via
-`/1/appliances/{id}/aircon_settings` and other appliances' registered IR
-signals via `/1/signals/{id}/send`.
+`capabilities/default.json` initially granted `http:default` with an
+`allow` list naming that one API's domain specifically, rather than an
+unrestricted allow-list - a plugin that needed to call a new outbound
+domain needed that domain added to this scope first. (Later widened to
+`{ "url": "*" }` - see the entry below for why and the trade-off.)
 
 ## 2026-08-20 — System tray icon
 
@@ -346,8 +338,8 @@ never been a titlebar close button or a taskbar entry to right-click.
 Added `src-tauri/src/tray.rs`, using Tauri's built-in tray APIs (enabled
 via the `tray-icon` Cargo feature on the `tauri` dependency - no extra
 plugin needed, unlike `tauri-plugin-http` earlier). Built in `setup()`
-right after the window is positioned: a two-item context menu (表示/非表示
-to toggle the window, 終了 to quit) shown on left or right click, using
+right after the window is positioned: a two-item context menu ("Show/Hide"
+to toggle the window, "Quit" to quit) shown on left or right click, using
 `app.default_window_icon()` so it doesn't need a separate icon asset -
 same `.ico` already configured in `tauri.conf.json`'s `bundle.icon` for
 the taskbar/installer.
@@ -364,10 +356,11 @@ straightforward to keep open for a screenshot via automation).
 
 ## 2026-08-20 — Fixed the real cause of cards "disappearing": drag saved on any click
 
-**Symptom, recurring:** a card (repeatedly nature-remo-card, the tallest
-and most content-dense one) would go missing after a reinstall or after
-normal use, even though its plugin default position no longer collided
-with anything. Each time, the proximate cause traced back to a saved
+**Symptom, recurring:** an external plugin's card (repeatedly the one with
+the most content - many buttons and rows) would go missing after a
+reinstall or after normal use, even though its plugin default position no
+longer collided with anything. Each time, the proximate cause traced back
+to a saved
 `swd:card-position:*` localStorage entry - clearing it fixed the symptom,
 but it kept coming back.
 
@@ -386,10 +379,10 @@ that snapshot could freeze in a stale/incorrect spot - and once saved, it
 permanently overrides the plugin's own default position on every future
 launch, including after any future code fix to that default.
 
-The more content a card has (more appliance rows, more links, more
-whitespace between buttons), the more surface area for an incidental
-click to trigger this - which is exactly why nature-remo-card kept being
-the one affected once its appliance list grew.
+The more content a card has (more rows, more links, more whitespace
+between buttons), the more surface area for an incidental click to
+trigger this - which is exactly why the same card kept being the one
+affected as its content grew.
 
 **Fix:** added a `DRAG_THRESHOLD_PX` (4px) in `drag.js` - `pointermove`
 only treats the gesture as a real drag (switching off right-anchoring,
@@ -427,11 +420,46 @@ logging it as a real failure. This only ever adds latency on the rare
 first-launch case; a healthy import succeeds immediately and never sees
 the retry path.
 
+## 2026-08-20 — A sandboxed coding agent's file writes can be invisible to the real app
+
+**Symptom:** an external plugin kept "not existing" from the running
+app's point of view, even after the drag-position fix and the
+import-retry fix above, and even after multiple clean reinstalls. Every
+diagnostic check run *from inside the agent session* - `Test-Path`,
+`Get-ChildItem`, even launching the built exe directly and reading its
+own debug log - reported the plugin's files present and being served
+correctly. The actual installed app, launched normally (not from within
+the agent's own process tree), still saw nothing there.
+
+**Root cause:** the coding agent used to develop this session runs inside
+an OS-level sandbox (a Windows AppContainer, in this case) that
+transparently redirects reads/writes under certain per-user known folders
+(`%APPDATA%\Roaming` among them) to a private virtualized copy tied to
+the agent's own package identity. Every tool the agent used to write the
+plugin files, and every tool it used to *verify* they existed, ran inside
+that same redirected view - so verification and reality agreed with each
+other while both silently diverging from what a normally-launched process
+in the user's own session would see. Windows' `Test-Path`/`Get-ChildItem`
+don't surface this redirection in any way; a path that "exists" from
+inside the sandbox can be invisible from outside it, with no error
+anywhere.
+
+**Fix / workaround:** this isn't a code bug in the app to fix - it's a
+property of developing external plugins through a sandboxed agent. The
+reliable pattern going forward: the agent hands over plugin files as an
+actual file transfer (e.g. a zip) rather than claiming "I wrote it to
+`<path>`," and whoever's installing the plugin places the files under
+`%APPDATA%\dev.seita.swd\plugins\` themselves, in their own normal
+session - never trusting a sandboxed tool's own existence checks for
+anything under a redirected known folder. Documented in
+`docs/plugin-authoring.md` as a standing caution for the same situation
+recurring with a different plugin.
+
 ## 2026-08-20 — `http:default` scope widened to `*` (user-requested)
 
-`capabilities/default.json`'s `http:default` permission was scoped to
-`https://api.nature.global/*` only (see "Generic outbound HTTP for
-plugins" above) specifically so that adding a plugin calling a new API
+`capabilities/default.json`'s `http:default` permission was scoped to one
+specific domain only (see "Generic outbound HTTP for plugins" above)
+specifically so that adding a plugin calling a new API
 would need a deliberate, reviewable one-line addition to this repo. The
 user asked for that friction removed - `allow` is now `{ "url": "*" }`,
 so any plugin can call any HTTPS endpoint via `window.__TAURI__.http.fetch`

@@ -268,9 +268,9 @@ const res = await fetch("https://api.example.com/data", {
 `docs/history.md`), so no repo change is needed to call a new API from a
 plugin. If that scope is ever narrowed back down, calling a new domain
 would need an entry added there and a rebuild + reinstall (see
-`CLAUDE.md`). See `plugins/nature-remo/index.js` (external, not in this
-repo, but described in `docs/history.md`) for a full real-world example
-of the outbound-HTTP pattern itself.
+`CLAUDE.md`). See `docs/history.md` under "Generic outbound HTTP for
+plugins" for the full story behind this pattern, including the CORS
+issue it works around.
 
 ## Permissions
 
@@ -320,8 +320,9 @@ to a private virtualized copy - the agent's own file-existence checks,
 `Test-Path` calls, even a test run of the built exe **can all report
 success while writing to a copy the real, normally-launched app never
 sees**. This is exactly what happened once already (see `docs/history.md`
-under "再インストールもしました" for the full story) - hours of "it works
-when I test it, but not for you" before the actual cause turned up.
+under "A sandboxed coding agent's file writes can be invisible to the
+real app" for the full story) - hours of "it works when I test it, but
+not for you" before the actual cause turned up.
 
 The reliable fix: have the agent hand you the plugin files as an actual
 file transfer (a zip, not just "I wrote it to X path") and place them

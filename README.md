@@ -1,126 +1,132 @@
 # SWD (Seita Windows Dashboard)
 
-Windows 11 常駐デスクトップウィジェット。Wallpaper Engine の壁紙の上・デスクトップ
-アイコンの下というレイヤーに、グラスモーフィズム調のシステム情報ダッシュボード
-（時計 / CPU・メモリ（グラフ付き） / ネットワーク（グラフ付き） / 再生中メディア）
-を表示する。
+An always-on Windows 11 desktop widget. Renders a glass-morphism system
+dashboard (clock, CPU/memory, network, now-playing media, plus whatever
+plugins are installed) pinned above the desktop wallpaper (Wallpaper
+Engine) and below the desktop icons.
 
-開発の経緯・非自明な判断の理由は [docs/history.md](docs/history.md) に、
-コーディングエージェント向けの早見表は [CLAUDE.md](CLAUDE.md) にまとめてある
-（いずれも英語）。
+The reasoning behind non-obvious decisions lives in
+[docs/history.md](docs/history.md); a quick-reference for anyone (human
+or AI) working in this codebase is in [CLAUDE.md](CLAUDE.md); a guide to
+writing a plugin (built-in or external) is in
+[docs/plugin-authoring.md](docs/plugin-authoring.md).
 
-## セットアップ
+## Setup
 
-### 必要なツール
+### Requirements
 
-| ツール | バージョン目安 | 備考 |
+| Tool | Version | Notes |
 | --- | --- | --- |
-| Node.js | 20 以上 | 開発確認時は v26 系を使用 |
-| npm | 10 以上 | |
-| Rust (stable, MSVC toolchain) | 1.75 以上 | `rustup default stable-x86_64-pc-windows-msvc` |
-| Tauri CLI | `@tauri-apps/cli` v2 | `npm install` で devDependency として入る |
+| Node.js | 20+ | developed against the v26 line |
+| npm | 10+ | |
+| Rust (stable, MSVC toolchain) | 1.75+ | `rustup default stable-x86_64-pc-windows-msvc` |
+| Tauri CLI | `@tauri-apps/cli` v2 | installed as a devDependency via `npm install` |
 
-Windows 11 + WebView2 ランタイム（Windows 11 は標準搭載）が前提。**Windows専用**
-（Win32 API に直接依存しているため、macOS/Linux では `window_layer` /
-`hit_test` モジュールがビルドから除外され、デスクトップ背面固定とクリック
-スルーが動作しない）。
+Requires Windows 11 and the WebView2 runtime (bundled with Windows 11).
+**Windows-only** — it depends directly on Win32 APIs, so on macOS/Linux
+the `window_layer` and `hit_test` modules are excluded from the build and
+desktop pinning / click-through don't work.
 
-### インストール
+### Install
 
 ```bash
 npm install
 ```
 
-## 実行・ビルド
+## Run / build
 
 ```bash
-# 開発モード（ホットリロードではなく、Rust側の変更検知で自動再ビルド・再起動）
+# Dev mode - not hot reload, but auto-recompiles/restarts on src-tauri/ changes
 npm run dev
 
-# リリースビルド
+# Release bundle (installers under src-tauri/target/release/bundle/)
 npm run build
 ```
 
-`npm run dev` は `src-tauri/` 配下の変更を検知すると自動で再コンパイル・
-再起動する。フロントエンド (`src/`) はバンドラーを使わない素の HTML/CSS/JS
-構成のため、`main.js` 側の変更を反映するにはウィンドウの再読み込み（アプリ
-再起動、または再ビルドトリガー）が必要な場合がある。
+`npm run dev` auto-recompiles and restarts on any `src-tauri/` change.
+The frontend (`src/`) has no bundler — plain HTML/CSS/JS served as-is —
+so a `src/` change may need a window reload (or an app restart) to show
+up, since there's no dev server watching those files.
 
-## アーキテクチャ概要
+## Architecture overview
 
 ```
 src-tauri/src/
-├── lib.rs          # アプリ起動・モニタ選択・ウィンドウ初期化・モジュール配線
-├── window_layer.rs # デスクトップ背面レイヤー固定（Windows専用）
-├── hit_test.rs      # クリックスルー制御（Windows専用）
-├── system_info.rs  # CPU/メモリ/ネットワーク情報の定期送信（全OS共通）
-└── media.rs           # 再生中メディア情報・再生操作（Windows専用）
+├── lib.rs          # app bootstrap: monitor selection, window init, module wiring
+├── window_layer.rs # desktop-pinning z-order trick (Windows only)
+├── hit_test.rs      # click-through region polling (Windows only)
+├── system_info.rs  # CPU/memory/network sampling, cross-platform
+├── media.rs           # now-playing info + transport controls (Windows only)
+├── plugins.rs           # external plugin discovery + safe file resolution
+└── tray.rs                 # system tray icon + context menu
 
 src/
-├── index.html
-├── style.css        # グラスモーフィズムのベーススタイル
-├── main.js           # カードのドラッグ・位置保存・クリックスルー同期
-└── modules/
-    ├── clock.js
-    ├── system-monitor.js  # CPU/メモリカード（sparkline.js を利用）
-    ├── network.js           # 送受信速度カード（sparkline.js を利用）
-    ├── media.js               # 再生中メディアカード
-    ├── sparkline.js            # 折れ線グラフ描画の共通ロジック
-    └── layout.js                # カード位置の localStorage 永続化
+├── index.html         # empty <div class="dashboard"> - cards mount at runtime
+├── style.css          # glass-morphism base styles only
+├── main.js            # bootstrap: load plugins, mount them, start hit-region sync
+├── core/               # generic plugin host (not card-specific)
+├── shared/              # code shared across plugins (e.g. the sparkline renderer)
+└── plugins/               # built-in cards: clock, system-monitor, network, media
 ```
 
-新しいカードを追加する場合は `src/modules/` に独立したモジュールを追加し、
-`index.html` に `.glass-card` を1枚足し、`main.js` から呼び出すだけでよい
-（クリックスルー・ドラッグ・位置保存は `.glass-card` クラスと `id` があれば
-自動的に効く）。
+Adding a card is adding a plugin — see
+[docs/plugin-authoring.md](docs/plugin-authoring.md) for the full guide.
+Drag handling, click-through hit-testing, and position persistence are
+all generic over `.glass-card` + a unique `id`, so a new plugin gets them
+for free.
 
-### デスクトップ背面レイヤーの実装方式
+### How desktop pinning works
 
-`tauri-plugin-wallpaper`（壁紙と同じ位置に配置＝Wallpaper Engineと競合）や
-`tauri-plugin-desktop-underlay`（正しいレイヤーだが全クリック操作が無効化
-される）は要件（壁紙の上・アイコンの下・かつクリック可能）を満たせなかった
-ため、**Win32 API を直接叩く自前実装**を採用している（Rainmeter の
-"Send to Desktop" と同じ考え方）。
+Two existing Tauri plugins were evaluated and rejected: one places the
+window in the same slot the wallpaper itself renders into (fights with
+Wallpaper Engine for the same surface), the other correctly targets
+"above wallpaper, below icons" but disables all mouse/keyboard input to
+get there. Neither meets the requirement of a pinned window that's also
+interactive.
 
-- ウィンドウは `SetParent` で WorkerW の子にはしない（子にすると入力操作が
-  一切効かなくなる）。あくまで独立したトップレベルウィンドウのまま、
-  `SetWindowPos` でデスクトップアイコンを持つウィンドウのすぐ後ろ（＝壁紙
-  WorkerW のすぐ手前）に z-order だけ挿入している（`window_layer.rs`）。
-- 3秒ごとにこの z-order 挿入をやり直すウォッチャースレッドを起動している。
-  explorer.exe が WorkerW を再生成するタイミング（ディスプレイ設定変更や
-  explorer 再起動など）で配置がずれるのを防ぐため。
-- クリックスルーは「ウィンドウ全体を ignore_cursor_events にした状態から
-  Webview 自身のマウスイベントで復帰する」方式だと、一度クリックスルーに
-  すると入力イベントが来なくなり復帰できないデッドロックに陥る。そのため
-  フロントエンドがカードの画面座標を Rust 側に送り（`set_hit_regions`
-  コマンド）、Rust 側の別スレッドが `GetCursorPos` を独立にポーリングして
-  カード領域との重なりだけで `ignore_cursor_events` を切り替えている
-  （`hit_test.rs`）。
+Instead, this project talks to the Win32 WorkerW hierarchy directly (the
+same idea Rainmeter's "Send to Desktop" uses):
 
-### 再生中メディアカードの仕組み
+- The window is never `SetParent`'d into WorkerW — that would disable
+  input entirely. It stays an independent top-level window; a background
+  thread just reorders its z-position, right behind the window that owns
+  the desktop icons and just in front of the wallpaper's WorkerW
+  (`window_layer.rs`).
+- That z-order fix-up reruns every few seconds, since `explorer.exe`
+  periodically recreates WorkerW (e.g. on a display change or an
+  `explorer.exe` restart), which would otherwise silently undo it.
+- Click-through can't be implemented as "the window ignores the cursor
+  until its own mousemove tells it to stop" — once a window ignores the
+  cursor, it stops receiving mouse events at all, including the one that
+  would undo it. Instead the frontend reports each card's screen-space
+  rectangle to Rust (`set_hit_regions`), and an independent thread polls
+  `GetCursorPos` to decide whether the window should currently be
+  click-through or not (`hit_test.rs`).
 
-Windows の System Media Transport Controls（Win+G やロック画面のメディア
-オーバーレイと同じ API）から現在再生中のタイトル・アーティスト・サムネイル・
-再生状態を取得し、再生/一時停止・前後スキップを実行できる（`media.rs`）。
-WinRT の呼び出しは呼び出し元スレッドで COM 初期化が必要なため、ポーリングと
-操作コマンドの両方を専用の1スレッドに集約し、コマンドは `mpsc` チャンネル
-経由でそのスレッドに渡している。
+### Now-playing card
 
-### 既知の制限
+Reads the current title/artist/thumbnail/playback state from Windows'
+System Media Transport Controls (the same API behind the Win+G media
+overlay and lock-screen media controls) and can send
+play/pause/next/previous (`media.rs`). WinRT calls require COM
+initialization on the calling thread, so both the polling loop and the
+transport commands run on one dedicated thread, with commands routed to
+it over an `mpsc` channel.
 
-- **Win+D（デスクトップ表示）でウィジェットが最小化される**: `SetParent`
-  を使わない方式のトレードオフとして、通常のアプリウィンドウと同様に
-  Win+D で最小化される（デスクトップの一部として扱われていないため）。
-  常時表示を維持したい場合は `WM_WINDOWPOSCHANGING` をサブクラス化して
-  Win+D の移動リクエストを横取りする対応が別途必要（未実装）。
-- **GPU使用率は未実装**: `sysinfo` crate は GPU 情報を扱わないため、CPU・
-  メモリ・ネットワークのみ対応。実装する場合は PDH (`GPU Engine`
-  パフォーマンスカウンター) や NVML 等ベンダー固有 SDK の追加調査が必要。
-- **マルチモニタは「いちばん右のモニター」固定**: `src-tauri/src/lib.rs`
-  の `select_target_monitor` 関数で選択ロジックを1箇所にまとめてあるので、
-  プライマリモニタや特定インデックスへの変更は同関数を書き換えるだけで
-  済む設計にしてある。
-- **カード位置の保存先は WebView の `localStorage`**: アプリの
-  ユーザーデータディレクトリに紐づいて永続化されるが、WebView のプロファ
-  イルを消すと失われる。将来的に設定ファイル（JSON）へ移す場合は
-  `src/modules/layout.js` の実装を差し替えるだけでよい。
+### Known limitations
+
+- **Win+D ("show desktop") minimizes the widget.** A trade-off of not
+  using `SetParent` — like any normal app window, it isn't exempt from
+  Win+D. Fixable with a `WM_WINDOWPOSCHANGING` subclass hook that
+  intercepts the move request; not implemented.
+- **No GPU metric.** The `sysinfo` crate doesn't expose GPU usage — only
+  CPU, memory, and network are covered. Would need PDH's `GPU Engine`
+  performance counters or a vendor-specific SDK (e.g. NVML).
+- **Multi-monitor targeting is "rightmost of all connected monitors."**
+  Centralized in `select_target_monitor` in `src-tauri/src/lib.rs`, so
+  switching to "primary monitor" or a specific index is a one-function
+  change.
+- **Card positions persist in the WebView's `localStorage`,** tied to the
+  app's user-data directory — clearing the WebView profile loses them.
+  Swapping this for a config file later only means changing
+  `src/core/layout.js`.

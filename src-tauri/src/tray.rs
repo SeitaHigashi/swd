@@ -26,8 +26,8 @@ fn toggle_main_window(app: &AppHandle) {
 }
 
 pub fn setup(app: &AppHandle) -> tauri::Result<()> {
-    let toggle_item = MenuItem::with_id(app, TOGGLE_VISIBILITY_ID, "表示/非表示", true, None::<&str>)?;
-    let quit_item = MenuItem::with_id(app, QUIT_ID, "終了", true, None::<&str>)?;
+    let toggle_item = MenuItem::with_id(app, TOGGLE_VISIBILITY_ID, "Show/Hide", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, QUIT_ID, "Quit", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let menu = Menu::with_items(app, &[&toggle_item, &separator, &quit_item])?;
 
