@@ -150,7 +150,7 @@ against any API that doesn't send CORS headers (most cloud APIs don't,
 since they're not designed to be called from a browser). The Rust-side
 plugin makes the request natively, sidestepping CORS entirely.
 `http:default`'s `allow` list in `capabilities/default.json` is scoped to
-`{ "url": "*" }` (user-requested; originally per-domain, see
+`{ "url": "*://*/*" }` (user-requested; originally per-domain, see
 `docs/history.md` under "Generic outbound HTTP for plugins" and its
 follow-up for the reasoning both ways), so no capability change is
 needed to call a new domain.

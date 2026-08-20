@@ -10,7 +10,7 @@
     "opener:default",
     {
       "identifier": "http:default",
-      "allow": [{ "url": "*" }]
+      "allow": [{ "url": "*://*/*" }]
     }
   ]
 }

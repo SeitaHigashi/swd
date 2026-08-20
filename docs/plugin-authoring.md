@@ -264,7 +264,7 @@ const res = await fetch("https://api.example.com/data", {
 ```
 
 `capabilities/default.json`'s `http:default` permission is scoped to
-`{ "url": "*" }` (any domain, user-requested trade-off - see
+`{ "url": "*://*/*" }` (any domain, user-requested trade-off - see
 `docs/history.md`), so no repo change is needed to call a new API from a
 plugin. If that scope is ever narrowed back down, calling a new domain
 would need an entry added there and a rebuild + reinstall (see

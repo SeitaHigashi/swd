@@ -324,7 +324,7 @@ automatically becomes available to every plugin (built-in or external) as
 `allow` list naming that one API's domain specifically, rather than an
 unrestricted allow-list - a plugin that needed to call a new outbound
 domain needed that domain added to this scope first. (Later widened to
-`{ "url": "*" }` - see the entry below for why and the trade-off.)
+`{ "url": "*://*/*" }` - see the entry below for why and the trade-off.)
 
 ## 2026-08-20 — System tray icon
 
@@ -461,7 +461,7 @@ recurring with a different plugin.
 specific domain only (see "Generic outbound HTTP for plugins" above)
 specifically so that adding a plugin calling a new API
 would need a deliberate, reviewable one-line addition to this repo. The
-user asked for that friction removed - `allow` is now `{ "url": "*" }`,
+user asked for that friction removed - `allow` is now `{ "url": "*://*/*" }`,
 so any plugin can call any HTTPS endpoint via `window.__TAURI__.http.fetch`
 with no repo change.
 
@@ -475,3 +475,31 @@ arguably a soft boundary already - it stopped an *accidental* wrong
 domain, not a deliberately malicious plugin. Still a real trade-off for a
 plugin whose source you haven't read carefully, but that's the same trust
 model already accepted for `ctx.invoke`.
+
+## 2026-08-20 — Fixed `http:default`'s scope: `"*"` was a broken pattern
+
+**Symptom:** an external plugin's outbound HTTP calls started failing
+with an error whose message was `undefined` - the underlying `fetch()`
+promise was rejecting, but with something that had no `.message`
+property, right after the scope had been widened to `{ "url": "*" }`.
+
+**Root cause:** `tauri-plugin-http`'s scope entries are parsed as
+[URLPattern](https://developer.mozilla.org/en-US/docs/Web/API/URLPattern)
+constructor strings. A bare `"*"` with no `://` is parsed as a
+*pathname-only* pattern - the parser only auto-fills the pathname/search/
+hash components when they're empty, never the protocol or hostname. So
+`"*"` compiles into a pattern requiring an *empty* protocol and hostname,
+which no real `https://...` request will ever have - it silently denied
+every request instead of allowing every request, the opposite of the
+intent. Confirmed against the plugin's own test suite
+(`tauri-plugin-http`'s `scheme_wildcard` test), which uses `"*://*"` /
+`"*://*/*"` as the actual all-domains pattern.
+
+**Fix:** `capabilities/default.json`'s `http:default.allow` is now
+`{ "url": "*://*/*" }`. Also hardened the affected external plugin's
+error display to fall back to the raw thrown value (`err?.message ??
+String(err)`) instead of assuming every rejection is an `Error` instance
+with a `.message` - a Tauri permission-denial rejects with a plain
+string, not an `Error`, which is exactly what produced the "undefined"
+in the first place and would silently do so again for any future
+permission issue.
