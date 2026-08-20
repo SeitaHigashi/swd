@@ -426,3 +426,24 @@ plugin import exactly once, after a 1.5s delay, before giving up and
 logging it as a real failure. This only ever adds latency on the rare
 first-launch case; a healthy import succeeds immediately and never sees
 the retry path.
+
+## 2026-08-20 — `http:default` scope widened to `*` (user-requested)
+
+`capabilities/default.json`'s `http:default` permission was scoped to
+`https://api.nature.global/*` only (see "Generic outbound HTTP for
+plugins" above) specifically so that adding a plugin calling a new API
+would need a deliberate, reviewable one-line addition to this repo. The
+user asked for that friction removed - `allow` is now `{ "url": "*" }`,
+so any plugin can call any HTTPS endpoint via `window.__TAURI__.http.fetch`
+with no repo change.
+
+Trade-off, explicit: this removes the one place a malicious or buggy
+external plugin's outbound network access was constrained by anything
+other than trust in the plugin's own source. Given `withGlobalTauri: true`
+already means a plugin can reach `window.__TAURI__.core.invoke` directly
+regardless of what `ctx.invoke`'s per-plugin allowlist says (documented
+under "External plugin loading (stage 2)" above), the domain scope was
+arguably a soft boundary already - it stopped an *accidental* wrong
+domain, not a deliberately malicious plugin. Still a real trade-off for a
+plugin whose source you haven't read carefully, but that's the same trust
+model already accepted for `ctx.invoke`.

@@ -10,7 +10,7 @@
     "opener:default",
     {
       "identifier": "http:default",
-      "allow": [{ "url": "https://api.nature.global/*" }]
+      "allow": [{ "url": "*" }]
     }
   ]
 }

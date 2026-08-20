@@ -263,21 +263,14 @@ const res = await fetch("https://api.example.com/data", {
 });
 ```
 
-**The target domain must be added to `capabilities/default.json`'s
-`http:default` permission first** - this is the one case where an
-otherwise-external plugin needs a change in this repo (and therefore a
-rebuild + reinstall, see `CLAUDE.md`):
-
-```json
-{
-  "identifier": "http:default",
-  "allow": [{ "url": "https://api.example.com/*" }]
-}
-```
-
-Don't widen it to `*` - add the specific domain your plugin needs. See
-`plugins/nature-remo/index.js` (external, not in this repo, but described
-in `docs/history.md`) for a full real-world example of this pattern.
+`capabilities/default.json`'s `http:default` permission is scoped to
+`{ "url": "*" }` (any domain, user-requested trade-off - see
+`docs/history.md`), so no repo change is needed to call a new API from a
+plugin. If that scope is ever narrowed back down, calling a new domain
+would need an entry added there and a rebuild + reinstall (see
+`CLAUDE.md`). See `plugins/nature-remo/index.js` (external, not in this
+repo, but described in `docs/history.md`) for a full real-world example
+of the outbound-HTTP pattern itself.
 
 ## Permissions
 
