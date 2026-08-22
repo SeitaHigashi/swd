@@ -65,15 +65,20 @@ src-tauri/src/
 ├── system_info.rs  # CPU/memory/network sampling → `sys://stats` event
 ├── media.rs          # Windows Media Transport Controls → `media://now-playing` (Windows only)
 ├── plugins.rs          # external plugin discovery (list_plugins) + safe file resolution
-└── tray.rs               # system tray icon + context menu (show/hide, quit)
+├── settings.rs           # per-plugin enabled/config persistence + settings window
+└── tray.rs                 # system tray icon + context menu (show/hide, settings, quit)
 
 src/
 ├── index.html         # empty <div class="dashboard"> — cards are mounted at runtime
+├── settings.html        # settings window shell (tray → Settings...)
 ├── style.css          # glass-morphism base styles only, no per-card rules
-├── main.js            # bootstrap: loadPlugins() → mountPlugin() → startHitRegionWatcher()
+├── main.js            # bootstrap: loadAllPlugins() → filter by settings → mountPlugin()
+├── settings/
+│   ├── main.js           # renders every plugin's on/off toggle + configSchema form
+│   └── style.css           # normal opaque window styling, not glass-morphism
 ├── core/               # generic plugin host, not card-specific
-│   ├── plugin-host.js  # mountPlugin(): builds the .glass-card element, wires ctx
-│   ├── loader.js         # returns the list of plugins to mount (built-ins today)
+│   ├── plugin-host.js  # mountPlugin(): builds the .glass-card element, wires ctx (incl. ctx.config)
+│   ├── loader.js         # discovers plugins (built-ins + external) and their saved settings
 │   ├── event-bus.js       # one listen() per Tauri event, fanned out to subscribers
 │   ├── drag.js              # pointer-drag handling
 │   ├── hit-regions.js         # click-through region sync, MutationObserver-driven
@@ -86,6 +91,18 @@ src/
     ├── network/{plugin.js, style.css}          # uses shared/sparkline.js
     └── media/{plugin.js, style.css}             # now-playing card
 ```
+
+### Per-widget on/off + settings
+
+Right-click the tray icon → **Settings...** opens a separate, normal
+(decorated, taskbar) window listing every plugin — built-in and external
+— with an enable/disable toggle and, if the plugin declares a
+`configSchema`, a generic settings form for it. See
+[docs/plugin-authoring.md](docs/plugin-authoring.md)'s "Configurable
+settings" section for the plugin-authoring side of this, and
+`src-tauri/src/settings.rs` for how state is persisted
+(`<app config dir>/settings.json`) and broadcast live to the dashboard via
+a `settings://changed` event.
 
 ### Adding a new card
 

@@ -88,9 +88,40 @@ async function loadExternalPlugins() {
 }
 
 /**
+ * Discovers every plugin (built-in + external) without regard to its
+ * enabled/disabled state. Used by both the dashboard (which then filters
+ * by `getAllPluginSettings()`) and the settings window (which needs the
+ * full list, including disabled plugins, to render their toggles).
  * @returns {Promise<{ plugin: object, baseUrl: string }[]>}
  */
-export async function loadPlugins() {
+export async function loadAllPlugins() {
   const external = await loadExternalPlugins();
   return [...BUILT_IN_PLUGINS, ...external];
+}
+
+/**
+ * Per-plugin `{ enabled, config }`, keyed by plugin id. A plugin absent
+ * from the saved file has never been touched from the settings window, so
+ * it defaults to enabled with no config - same as before this file
+ * existed.
+ * @returns {Promise<Record<string, { enabled: boolean, config: unknown }>>}
+ */
+export async function getAllPluginSettings() {
+  try {
+    return await invoke("get_all_plugin_settings");
+  } catch (err) {
+    console.error("[loader] get_all_plugin_settings failed", err);
+    return {};
+  }
+}
+
+/**
+ * @returns {Promise<{ plugin: object, baseUrl: string, config: unknown }[]>}
+ *   Only plugins not explicitly disabled from the settings window.
+ */
+export async function loadPlugins() {
+  const [all, settings] = await Promise.all([loadAllPlugins(), getAllPluginSettings()]);
+  return all
+    .filter(({ plugin }) => settings[plugin.id]?.enabled !== false)
+    .map(({ plugin, baseUrl }) => ({ plugin, baseUrl, config: settings[plugin.id]?.config }));
 }

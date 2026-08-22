@@ -4,6 +4,7 @@
 // The tray icon also lets the window be hidden/shown on demand, e.g. to
 // get it out of the way of a full-screen app temporarily.
 
+use crate::settings::open_settings_window;
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
@@ -11,6 +12,7 @@ use tauri::{
 };
 
 const TOGGLE_VISIBILITY_ID: &str = "toggle-visibility";
+const SETTINGS_ID: &str = "settings";
 const QUIT_ID: &str = "quit";
 
 fn toggle_main_window(app: &AppHandle) {
@@ -27,9 +29,13 @@ fn toggle_main_window(app: &AppHandle) {
 
 pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     let toggle_item = MenuItem::with_id(app, TOGGLE_VISIBILITY_ID, "Show/Hide", true, None::<&str>)?;
+    let settings_item = MenuItem::with_id(app, SETTINGS_ID, "Settings...", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, QUIT_ID, "Quit", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
-    let menu = Menu::with_items(app, &[&toggle_item, &separator, &quit_item])?;
+    let menu = Menu::with_items(
+        app,
+        &[&toggle_item, &settings_item, &separator, &quit_item],
+    )?;
 
     TrayIconBuilder::new()
         .icon(app.default_window_icon().cloned().expect("bundle icon must be configured"))
@@ -38,6 +44,11 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id().as_ref() {
             TOGGLE_VISIBILITY_ID => toggle_main_window(app),
+            SETTINGS_ID => {
+                if let Err(err) = open_settings_window(app) {
+                    eprintln!("[tray] failed to open settings window: {err:?}");
+                }
+            }
             QUIT_ID => app.exit(0),
             _ => {}
         })

@@ -1,0 +1,156 @@
+/* Settings window: a normal, opaque, decorated window (unlike the
+   transparent glass-morphism dashboard in src/style.css), so this is
+   deliberately its own stylesheet rather than sharing that one. */
+
+:root {
+  color-scheme: dark;
+  --swd-bg: #1b1d24;
+  --swd-card-bg: #24262f;
+  --swd-border: rgba(255, 255, 255, 0.1);
+  --swd-text: rgba(255, 255, 255, 0.92);
+  --swd-text-dim: rgba(255, 255, 255, 0.55);
+  --swd-accent: #789aff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--swd-bg);
+  color: var(--swd-text);
+  font-family:
+    "Segoe UI Variable",
+    "Segoe UI",
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
+
+#settings-root {
+  padding: 20px 24px 32px;
+}
+
+h1 {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--swd-text-dim);
+  margin: 0 0 16px;
+}
+
+.hint {
+  color: var(--swd-text-dim);
+  font-size: 13px;
+}
+
+.widget-card {
+  background: var(--swd-card-bg);
+  border: 1px solid var(--swd-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+
+.widget-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.widget-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.widget-id {
+  font-size: 11px;
+  color: var(--swd-text-dim);
+  font-family: "Cascadia Code", "Consolas", monospace;
+}
+
+.widget-fields {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--swd-border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.field-label {
+  color: var(--swd-text-dim);
+}
+
+.field-input {
+  background: var(--swd-bg);
+  color: var(--swd-text);
+  border: 1px solid var(--swd-border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 13px;
+  min-width: 120px;
+}
+
+.field-input[type="checkbox"] {
+  min-width: auto;
+  width: 16px;
+  height: 16px;
+}
+
+/* Toggle switch */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 38px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch .slider {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.switch .slider::before {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  left: 3px;
+  top: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.15s ease;
+}
+
+.switch input:checked + .slider {
+  background: var(--swd-accent);
+}
+
+.switch input:checked + .slider::before {
+  transform: translateX(16px);
+}

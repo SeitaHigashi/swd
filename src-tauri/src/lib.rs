@@ -3,6 +3,7 @@ mod hit_test;
 #[cfg(target_os = "windows")]
 mod media;
 mod plugins;
+mod settings;
 mod system_info;
 mod tray;
 #[cfg(target_os = "windows")]
@@ -101,9 +102,17 @@ pub fn run() {
         media::media_next,
         media::media_previous,
         plugins::list_plugins,
+        settings::get_all_plugin_settings,
+        settings::set_plugin_enabled,
+        settings::set_plugin_config,
     ]);
     #[cfg(not(target_os = "windows"))]
-    let builder = builder.invoke_handler(tauri::generate_handler![plugins::list_plugins]);
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        plugins::list_plugins,
+        settings::get_all_plugin_settings,
+        settings::set_plugin_enabled,
+        settings::set_plugin_config,
+    ]);
 
     builder
         .setup(|app| {

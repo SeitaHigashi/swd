@@ -7,6 +7,15 @@ export default {
   name: "Clock",
   position: { top: 32, right: 32 },
   styles: ["./style.css"],
+  configSchema: [
+    {
+      key: "hourFormat",
+      label: "Hour format",
+      type: "select",
+      options: ["24h", "12h"],
+      default: "24h",
+    },
+  ],
   mount(ctx) {
     ctx.root.innerHTML = `
       <p class="clock" id="clock">--:--:--</p>
@@ -20,7 +29,7 @@ export default {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
-      hour12: false,
+      hour12: ctx.config.hourFormat === "12h",
     });
     const dateFormatter = new Intl.DateTimeFormat("en-US", {
       year: "numeric",
