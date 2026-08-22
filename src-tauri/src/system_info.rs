@@ -5,11 +5,26 @@
 use std::time::Duration;
 
 use serde::Serialize;
-use sysinfo::{Networks, System};
+use sysinfo::{Disks, Networks, System};
 use tauri::{AppHandle, Emitter};
 
 const REFRESH_INTERVAL: Duration = Duration::from_millis(1500);
 const STATS_EVENT: &str = "sys://stats";
+
+// Mount points/drive letters don't change often enough to justify
+// re-listing disks on every tick; re-list roughly once a minute so a
+// newly attached drive still shows up without a restart.
+const DISK_LIST_REFRESH_EVERY: u32 = 40;
+
+#[derive(Clone, Serialize)]
+pub struct DiskStats {
+    name: String,
+    mount_point: String,
+    total_bytes: u64,
+    available_bytes: u64,
+    used_bytes: u64,
+    percent: f32,
+}
 
 #[derive(Clone, Serialize)]
 pub struct SystemStats {
@@ -19,6 +34,7 @@ pub struct SystemStats {
     mem_percent: f32,
     net_rx_bytes_per_sec: f64,
     net_tx_bytes_per_sec: f64,
+    disks: Vec<DiskStats>,
 }
 
 /// Starts a background thread that emits `sys://stats` roughly every
@@ -28,6 +44,8 @@ pub fn start_system_monitor(app: AppHandle) {
     std::thread::spawn(move || {
         let mut sys = System::new_all();
         let mut networks = Networks::new_with_refreshed_list();
+        let mut disks = Disks::new_with_refreshed_list();
+        let mut tick: u32 = 0;
 
         loop {
             std::thread::sleep(REFRESH_INTERVAL);
@@ -35,6 +53,13 @@ pub fn start_system_monitor(app: AppHandle) {
             sys.refresh_cpu_usage();
             sys.refresh_memory();
             networks.refresh();
+
+            tick = tick.wrapping_add(1);
+            if tick % DISK_LIST_REFRESH_EVERY == 0 {
+                disks.refresh_list();
+            } else {
+                disks.refresh();
+            }
 
             let (rx_bytes, tx_bytes) = networks
                 .iter()
@@ -57,6 +82,28 @@ pub fn start_system_monitor(app: AppHandle) {
                 },
                 net_rx_bytes_per_sec: rx_bytes as f64 / secs,
                 net_tx_bytes_per_sec: tx_bytes as f64 / secs,
+                disks: disks
+                    .list()
+                    .iter()
+                    .filter(|disk| disk.total_space() > 0)
+                    .map(|disk| {
+                        let total = disk.total_space();
+                        let available = disk.available_space();
+                        let used = total.saturating_sub(available);
+                        DiskStats {
+                            name: disk.name().to_string_lossy().into_owned(),
+                            mount_point: disk.mount_point().to_string_lossy().into_owned(),
+                            total_bytes: total,
+                            available_bytes: available,
+                            used_bytes: used,
+                            percent: if total > 0 {
+                                used as f32 / total as f32 * 100.0
+                            } else {
+                                0.0
+                            },
+                        }
+                    })
+                    .collect(),
             };
 
             let _ = app.emit(STATS_EVENT, stats);
