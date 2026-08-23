@@ -114,14 +114,3 @@ export async function getAllPluginSettings() {
     return {};
   }
 }
-
-/**
- * @returns {Promise<{ plugin: object, baseUrl: string, config: unknown }[]>}
- *   Only plugins not explicitly disabled from the settings window.
- */
-export async function loadPlugins() {
-  const [all, settings] = await Promise.all([loadAllPlugins(), getAllPluginSettings()]);
-  return all
-    .filter(({ plugin }) => settings[plugin.id]?.enabled !== false)
-    .map(({ plugin, baseUrl }) => ({ plugin, baseUrl, config: settings[plugin.id]?.config }));
-}

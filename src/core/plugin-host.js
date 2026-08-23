@@ -28,6 +28,7 @@ import { subscribe } from "./event-bus.js";
 import { applySavedPosition } from "./layout.js";
 import { makeDraggable } from "./drag.js";
 import { syncHitRegions } from "./hit-regions.js";
+import { resolveConfig } from "./config.js";
 
 const { invoke: tauriInvoke } = window.__TAURI__.core;
 
@@ -86,19 +87,6 @@ function makeScopedInvoke(plugin) {
   };
 }
 
-/**
- * Merges a plugin's declared `configSchema` defaults with whatever was
- * actually saved from the settings window, so `ctx.config` always has
- * every field populated even before the user has touched that plugin's
- * settings.
- */
-function resolveConfig(plugin, savedConfig) {
-  const defaults = {};
-  for (const field of plugin.configSchema ?? []) {
-    defaults[field.key] = field.default;
-  }
-  return { ...defaults, ...(savedConfig ?? {}) };
-}
 
 /**
  * Mounts one plugin into `container`. Returns a handle with `unmount()`.

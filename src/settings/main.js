@@ -6,14 +6,9 @@
 // only has to add `configSchema` to their plugin.js export.
 
 import { loadAllPlugins, getAllPluginSettings } from "../core/loader.js";
+import { resolveConfig } from "../core/config.js";
 
 const { invoke } = window.__TAURI__.core;
-
-function defaultsFor(plugin) {
-  const defaults = {};
-  for (const field of plugin.configSchema ?? []) defaults[field.key] = field.default;
-  return defaults;
-}
 
 function renderField(field, config, onChange) {
   const row = document.createElement("label");
@@ -69,7 +64,7 @@ function renderField(field, config, onChange) {
 }
 
 function renderPluginCard(plugin, saved) {
-  const config = { ...defaultsFor(plugin), ...(saved.config ?? {}) };
+  const config = resolveConfig(plugin, saved.config);
 
   const card = document.createElement("section");
   card.className = "widget-card";

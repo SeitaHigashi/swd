@@ -7,7 +7,15 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
+
+/// Guards the load-modify-save sequence in `set_plugin_enabled` and
+/// `set_plugin_config` so two settings changes fired in quick succession
+/// (e.g. toggling two different widgets) can't race and silently drop one
+/// of them - see the `Mutex` pattern already used the same way in
+/// hit_test.rs and media.rs.
+static SETTINGS_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct PluginSettings {
@@ -82,22 +90,26 @@ pub fn get_all_plugin_settings(app: AppHandle) -> Result<HashMap<String, PluginS
 
 #[tauri::command]
 pub fn set_plugin_enabled(app: AppHandle, id: String, enabled: bool) -> Result<(), String> {
+    let _guard = SETTINGS_LOCK.lock().unwrap();
     let mut file = load(&app);
     file.plugins.entry(id.clone()).or_default().enabled = enabled;
     save(&app, &file)?;
 
     let settings = file.plugins.get(&id).cloned().unwrap_or_default();
+    drop(_guard);
     let _ = app.emit(SETTINGS_CHANGED_EVENT, SettingsChanged { id, settings });
     Ok(())
 }
 
 #[tauri::command]
 pub fn set_plugin_config(app: AppHandle, id: String, config: serde_json::Value) -> Result<(), String> {
+    let _guard = SETTINGS_LOCK.lock().unwrap();
     let mut file = load(&app);
     file.plugins.entry(id.clone()).or_default().config = config;
     save(&app, &file)?;
 
     let settings = file.plugins.get(&id).cloned().unwrap_or_default();
+    drop(_guard);
     let _ = app.emit(SETTINGS_CHANGED_EVENT, SettingsChanged { id, settings });
     Ok(())
 }
