@@ -15,7 +15,10 @@ function driveLabel(disk) {
   // Windows mount points come back like "C:\\" - trim to "C:" for a
   // compact label; fall back to the raw mount point for anything else.
   const trimmed = disk.mount_point.replace(/\\$/, "");
-  return trimmed || disk.mount_point || disk.name || "Disk";
+  const letter = trimmed || disk.mount_point || "Disk";
+  // disk.name is the volume label (e.g. "Windows", "Data") and is empty
+  // for unlabeled drives - only append it when there's something to show.
+  return disk.name ? `${letter} (${disk.name})` : letter;
 }
 
 export default {

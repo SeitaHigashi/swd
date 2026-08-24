@@ -82,28 +82,34 @@ pub fn start_system_monitor(app: AppHandle) {
                 },
                 net_rx_bytes_per_sec: rx_bytes as f64 / secs,
                 net_tx_bytes_per_sec: tx_bytes as f64 / secs,
-                disks: disks
-                    .list()
-                    .iter()
-                    .filter(|disk| disk.total_space() > 0)
-                    .map(|disk| {
-                        let total = disk.total_space();
-                        let available = disk.available_space();
-                        let used = total.saturating_sub(available);
-                        DiskStats {
-                            name: disk.name().to_string_lossy().into_owned(),
-                            mount_point: disk.mount_point().to_string_lossy().into_owned(),
-                            total_bytes: total,
-                            available_bytes: available,
-                            used_bytes: used,
-                            percent: if total > 0 {
-                                used as f32 / total as f32 * 100.0
-                            } else {
-                                0.0
-                            },
-                        }
-                    })
-                    .collect(),
+                disks: {
+                    let mut list: Vec<DiskStats> = disks
+                        .list()
+                        .iter()
+                        .filter(|disk| disk.total_space() > 0)
+                        .map(|disk| {
+                            let total = disk.total_space();
+                            let available = disk.available_space();
+                            let used = total.saturating_sub(available);
+                            DiskStats {
+                                name: disk.name().to_string_lossy().into_owned(),
+                                mount_point: disk.mount_point().to_string_lossy().into_owned(),
+                                total_bytes: total,
+                                available_bytes: available,
+                                used_bytes: used,
+                                percent: if total > 0 {
+                                    used as f32 / total as f32 * 100.0
+                                } else {
+                                    0.0
+                                },
+                            }
+                        })
+                        .collect();
+                    // Alphabetical by drive letter/mount point (A: before C: before D:),
+                    // not OS enumeration order.
+                    list.sort_by(|a, b| a.mount_point.cmp(&b.mount_point));
+                    list
+                },
             };
 
             let _ = app.emit(STATS_EVENT, stats);
