@@ -19,6 +19,10 @@ export default {
   name: "System",
   position: { top: 170, right: 32 },
   styles: ["./style.css"],
+  configSchema: [
+    { key: "showCpuGraph", label: "Show CPU graph", type: "boolean", default: true },
+    { key: "showMemGraph", label: "Show memory graph", type: "boolean", default: true },
+  ],
   mount(ctx) {
     ctx.root.innerHTML = `
       <h2>System</h2>
@@ -46,6 +50,9 @@ export default {
     const memValueEl = ctx.el("#mem-value");
     const memBarEl = ctx.el("#mem-bar");
     const memGraphEl = ctx.el("#mem-graph");
+
+    if (cpuGraphEl) cpuGraphEl.hidden = !ctx.config.showCpuGraph;
+    if (memGraphEl) memGraphEl.hidden = !ctx.config.showMemGraph;
 
     const cpuHistory = [];
     const memHistory = [];
