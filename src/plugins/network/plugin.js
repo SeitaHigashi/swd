@@ -18,6 +18,7 @@ export default {
   name: "Network",
   position: { top: 460, right: 32 },
   styles: ["./style.css"],
+  configSchema: [{ key: "showGraph", label: "Show sparkline graph", type: "boolean", default: true }],
   mount(ctx) {
     ctx.root.innerHTML = `
       <h2>Network</h2>
@@ -35,6 +36,8 @@ export default {
     const upEl = ctx.el("#net-up");
     const downEl = ctx.el("#net-down");
     const graphEl = ctx.el("#net-graph");
+
+    if (graphEl) graphEl.hidden = !ctx.config.showGraph;
 
     const rxHistory = [];
     const txHistory = [];

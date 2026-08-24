@@ -10,6 +10,7 @@ export default {
   permissions: {
     invoke: ["media_toggle_play_pause", "media_previous", "media_next"],
   },
+  configSchema: [{ key: "showThumbnail", label: "Show album art", type: "boolean", default: true }],
   mount(ctx) {
     ctx.root.innerHTML = `
       <h2>Now Playing</h2>
@@ -62,7 +63,7 @@ export default {
       if (thumbEl) {
         if (nowPlaying.thumbnail_data_url) {
           thumbEl.src = nowPlaying.thumbnail_data_url;
-          thumbEl.hidden = false;
+          thumbEl.hidden = !ctx.config.showThumbnail;
         } else {
           thumbEl.removeAttribute("src");
           thumbEl.hidden = true;

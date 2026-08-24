@@ -110,6 +110,18 @@ settings" section for the plugin-authoring side of this, and
 (`<app config dir>/settings.json`) and broadcast live to the dashboard via
 a `settings://changed` event.
 
+**Terminology**: a "built-in widget" is one of the four cards shipped
+inside this repo (`clock`/`system-monitor`/`network`/`media`, listed in
+`BUILT_IN_PLUGINS` in `core/loader.js`) — as opposed to a "plugin", a
+third-party card installed externally under
+`%APPDATA%\dev.seita.swd\plugins\<id>\` (see "Installing an external
+plugin" below). Both are mounted through the same `plugin.js` shape, so
+code and docs still say "plugin" for that shared shape; "widget" means
+"one of the four built-in cards" specifically. Every built-in widget with
+a detail component worth hiding declares it via `configSchema` — see
+`network`'s `showGraph`, `system-monitor`'s `showCpuGraph`/
+`showMemGraph`, `clock`'s `showDate`, and `media`'s `showThumbnail`.
+
 ### Adding a new card
 
 Each card is a self-contained plugin — see `docs/history.md` under

@@ -20,6 +20,7 @@ export default {
       options: ["24h", "12h"],
       default: "24h",
     },
+    { key: "showDate", label: "Show date", type: "boolean", default: true },
   ],
   mount(ctx) {
     ctx.root.innerHTML = `
@@ -29,6 +30,8 @@ export default {
 
     const timeEl = ctx.el("#clock");
     const dateEl = ctx.el("#date");
+
+    if (dateEl) dateEl.hidden = !ctx.config.showDate;
 
     const timeFormatter = new Intl.DateTimeFormat("en-US", {
       hour: "2-digit",
