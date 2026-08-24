@@ -22,12 +22,14 @@ export default {
     ctx.root.innerHTML = `
       <h2>Network</h2>
       <div class="net-row">
-        <span class="net-arrow up">&#x25B2;</span>
-        <span id="net-up">-- KB/s</span>
-      </div>
-      <div class="net-row">
-        <span class="net-arrow down">&#x25BC;</span>
-        <span id="net-down">-- KB/s</span>
+        <span class="net-item">
+          <span class="net-arrow up">&#x25B2;</span>
+          <span id="net-up">-- KB/s</span>
+        </span>
+        <span class="net-item">
+          <span class="net-arrow down">&#x25BC;</span>
+          <span id="net-down">-- KB/s</span>
+        </span>
       </div>
       <canvas id="net-graph" class="net-graph" width="256" height="56"></canvas>
     `;

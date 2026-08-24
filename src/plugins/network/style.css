@@ -1,14 +1,15 @@
 #network-card .net-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 20px;
   font-size: 15px;
   font-variant-numeric: tabular-nums;
-  margin-bottom: 8px;
 }
 
-#network-card .net-row:last-child {
-  margin-bottom: 0;
+#network-card .net-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 #network-card .net-arrow {
