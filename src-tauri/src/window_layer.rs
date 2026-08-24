@@ -20,15 +20,17 @@
 //! focus/is restored. This can be revisited later with a WM_WINDOWPOSCHANGING
 //! subclass hook if it turns out to matter in daily use.
 
-use std::sync::atomic::{AtomicIsize, Ordering};
+use std::sync::atomic::{AtomicIsize, AtomicU32, Ordering};
 use std::time::Duration;
 
 use tauri::{AppHandle, Manager};
 use windows::core::{w, BOOL};
-use windows::Win32::Foundation::{HWND, LPARAM, TRUE, WPARAM};
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, TRUE, WPARAM};
+use windows::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, FindWindowExW, FindWindowW, SendMessageTimeoutW, SetWindowPos, SMTO_NORMAL,
-    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+    EnumWindows, FindWindowExW, FindWindowW, RegisterWindowMessageW, SendMessageTimeoutW,
+    SetWindowPos, SMTO_NORMAL, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, WM_DISPLAYCHANGE,
+    WM_DPICHANGED,
 };
 
 /// Undocumented message that makes explorer.exe spawn the WorkerW window
@@ -120,13 +122,124 @@ pub fn pin_to_desktop_layer(app: &AppHandle) {
     }
 }
 
-/// Starts a background loop that keeps re-pinning the window. This is
-/// necessary because explorer.exe recreates the WorkerW hierarchy on
-/// display changes, DPI changes, and explorer restarts, which would
-/// otherwise let the widget drift back to being a normal top-level window.
+/// Registered id of the `TaskbarCreated` broadcast message (0 until
+/// `start_layer_watcher` registers it). Every top-level window receives
+/// this message when explorer.exe restarts and recreates the taskbar/
+/// desktop window hierarchy — the standard Win32 way to detect that our
+/// z-order pin has just been blown away. Stored in a static so the
+/// subclass proc (a plain `extern "system" fn`, not a closure) can read it.
+static TASKBAR_CREATED_MSG: AtomicU32 = AtomicU32::new(0);
+
+/// `uIdSubclass` passed to `SetWindowSubclass`/`RemoveWindowSubclass`.
+/// Arbitrary — it only needs to be unique among subclasses installed on
+/// this hwnd, and we only ever install one.
+const LAYER_WATCHER_SUBCLASS_ID: usize = 1;
+
+/// Subclass proc installed on the main window. Watches for the messages
+/// that indicate the desktop's WorkerW hierarchy may have been rebuilt
+/// (explorer restart, display/DPI change) and re-asserts our z-order
+/// position when it sees one, then always falls through to
+/// `DefSubclassProc` so normal window behavior (input, Tauri's own
+/// handling, etc.) is unaffected.
+///
+/// `dwrefdata` carries a raw pointer to a leaked `AppHandle` clone (set up
+/// once in `start_layer_watcher`) since this callback has no closure
+/// environment to capture one in.
+unsafe extern "system" fn layer_watcher_subclass_proc(
+    hwnd: HWND,
+    msg: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+    _uidsubclass: usize,
+    dwrefdata: usize,
+) -> LRESULT {
+    let taskbar_created = TASKBAR_CREATED_MSG.load(Ordering::Relaxed);
+    let is_relevant = (taskbar_created != 0 && msg == taskbar_created)
+        || msg == WM_DISPLAYCHANGE
+        || msg == WM_DPICHANGED;
+
+    if is_relevant {
+        let app_ptr = dwrefdata as *const AppHandle;
+        if !app_ptr.is_null() {
+            let app = (*app_ptr).clone();
+            // Hop off the webview's message-loop thread before doing the
+            // actual EnumWindows/SendMessageTimeoutW/SetWindowPos work —
+            // SendMessageTimeoutW inside pin_to_desktop_layer can block for
+            // up to a second if explorer.exe is busy restarting, and
+            // stalling the WndProc would stall webview input/paint too.
+            std::thread::spawn(move || pin_to_desktop_layer(&app));
+        }
+    }
+
+    DefSubclassProc(hwnd, msg, wparam, lparam)
+}
+
+/// Installs the event-driven z-order watcher: a `SetWindowSubclass` hook on
+/// the main window that re-pins on `TaskbarCreated` (explorer.exe restart)
+/// and `WM_DISPLAYCHANGE`/`WM_DPICHANGED` (monitor/DPI reconfiguration),
+/// which are the actual events that recreate or reshuffle the WorkerW
+/// hierarchy and would otherwise let the widget drift back to being a
+/// normal top-level window. This replaces the old unconditional
+/// poll-every-3-seconds loop, which did a full `EnumWindows` pass on a
+/// timer regardless of whether anything had changed.
+///
+/// `SetWindowSubclass` (comctl32, via `Win32_UI_Shell`) is used instead of
+/// clobbering `GWLP_WNDPROC` directly with `SetWindowLongPtrW`, since the
+/// latter would silently break if Tauri/WebView2 ever install their own
+/// subclass on the same hwnd — subclasses chain via `DefSubclassProc`
+/// instead of stomping on each other's WNDPROC pointer. Tauri's webview
+/// window already runs a Win32 message loop on the main thread (that's how
+/// it processes input/paint at all), so a subclass on that hwnd is
+/// guaranteed to actually be pumped rather than sitting dormant.
 pub fn start_layer_watcher(app: AppHandle) {
+    // Pin immediately so the window is correctly layered right away,
+    // rather than waiting for the first TaskbarCreated/display-change
+    // event or the first fallback poll tick.
+    pin_to_desktop_layer(&app);
+
+    let Some(window) = app.get_webview_window("main") else {
+        eprintln!("[window_layer] main window not found; event hook not installed, falling back to poll only");
+        start_fallback_poll(app);
+        return;
+    };
+    let Ok(hwnd) = window.hwnd() else {
+        eprintln!("[window_layer] failed to get hwnd; event hook not installed, falling back to poll only");
+        start_fallback_poll(app);
+        return;
+    };
+
+    unsafe {
+        let taskbar_created = RegisterWindowMessageW(w!("TaskbarCreated"));
+        TASKBAR_CREATED_MSG.store(taskbar_created, Ordering::Relaxed);
+
+        // Leaked deliberately: this clone needs to outlive the subclass,
+        // which lives as long as the window does, i.e. the whole process.
+        let app_ptr = Box::into_raw(Box::new(app.clone())) as usize;
+
+        let installed = SetWindowSubclass(
+            hwnd,
+            Some(layer_watcher_subclass_proc),
+            LAYER_WATCHER_SUBCLASS_ID,
+            app_ptr,
+        );
+        if !installed.as_bool() {
+            eprintln!("[window_layer] SetWindowSubclass failed; relying on fallback poll only");
+        }
+    }
+
+    start_fallback_poll(app);
+}
+
+/// Coarse safety-net poll — NOT the primary re-pinning mechanism anymore.
+/// The `TaskbarCreated`/`WM_DISPLAYCHANGE`/`WM_DPICHANGED` subclass hook in
+/// `start_layer_watcher` handles the real-world triggers; this just guards
+/// against an edge case those messages don't cover (e.g. some other tool
+/// rebuilding the WorkerW hierarchy without going through the normal
+/// explorer-restart path). 60s instead of the old 3s poll interval since
+/// it only needs to eventually correct drift, not track it live.
+fn start_fallback_poll(app: AppHandle) {
     std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_secs(60));
         pin_to_desktop_layer(&app);
-        std::thread::sleep(Duration::from_secs(3));
     });
 }

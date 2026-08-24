@@ -7,6 +7,7 @@ import clockPlugin from "../plugins/clock/plugin.js";
 import systemMonitorPlugin from "../plugins/system-monitor/plugin.js";
 import networkPlugin from "../plugins/network/plugin.js";
 import mediaPlugin from "../plugins/media/plugin.js";
+import storagePlugin from "../plugins/storage/plugin.js";
 
 const { invoke } = window.__TAURI__.core;
 
@@ -15,6 +16,7 @@ const BUILT_IN_PLUGINS = [
   { plugin: systemMonitorPlugin, baseUrl: new URL("../plugins/system-monitor/plugin.js", import.meta.url).href },
   { plugin: networkPlugin, baseUrl: new URL("../plugins/network/plugin.js", import.meta.url).href },
   { plugin: mediaPlugin, baseUrl: new URL("../plugins/media/plugin.js", import.meta.url).href },
+  { plugin: storagePlugin, baseUrl: new URL("../plugins/storage/plugin.js", import.meta.url).href },
 ];
 
 /**
@@ -88,9 +90,29 @@ async function loadExternalPlugins() {
 }
 
 /**
+ * Discovers every plugin (built-in + external) without regard to its
+ * enabled/disabled state. Used by both the dashboard (which then filters
+ * by `getAllPluginSettings()`) and the settings window (which needs the
+ * full list, including disabled plugins, to render their toggles).
  * @returns {Promise<{ plugin: object, baseUrl: string }[]>}
  */
-export async function loadPlugins() {
+export async function loadAllPlugins() {
   const external = await loadExternalPlugins();
   return [...BUILT_IN_PLUGINS, ...external];
+}
+
+/**
+ * Per-plugin `{ enabled, config }`, keyed by plugin id. A plugin absent
+ * from the saved file has never been touched from the settings window, so
+ * it defaults to enabled with no config - same as before this file
+ * existed.
+ * @returns {Promise<Record<string, { enabled: boolean, config: unknown }>>}
+ */
+export async function getAllPluginSettings() {
+  try {
+    return await invoke("get_all_plugin_settings");
+  } catch (err) {
+    console.error("[loader] get_all_plugin_settings failed", err);
+    return {};
+  }
 }

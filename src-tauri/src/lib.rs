@@ -3,6 +3,7 @@ mod hit_test;
 #[cfg(target_os = "windows")]
 mod media;
 mod plugins;
+mod settings;
 mod system_info;
 mod tray;
 #[cfg(target_os = "windows")]
@@ -31,6 +32,28 @@ fn content_type_for(path: &std::path::Path) -> &'static str {
 fn select_target_monitor(window: &tauri::WebviewWindow) -> Option<tauri::window::Monitor> {
     let monitors = window.available_monitors().ok()?;
     monitors.into_iter().max_by_key(|m| m.position().x)
+}
+
+#[cfg(test)]
+mod lib_tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn content_type_for_known_extensions() {
+        assert_eq!(content_type_for(Path::new("index.js")), "text/javascript");
+        assert_eq!(content_type_for(Path::new("index.mjs")), "text/javascript");
+        assert_eq!(content_type_for(Path::new("style.css")), "text/css");
+        assert_eq!(content_type_for(Path::new("plugin.json")), "application/json");
+        assert_eq!(content_type_for(Path::new("icon.png")), "image/png");
+        assert_eq!(content_type_for(Path::new("icon.svg")), "image/svg+xml");
+    }
+
+    #[test]
+    fn content_type_for_unknown_or_missing_extension_falls_back_to_octet_stream() {
+        assert_eq!(content_type_for(Path::new("data.bin")), "application/octet-stream");
+        assert_eq!(content_type_for(Path::new("README")), "application/octet-stream");
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -101,9 +124,17 @@ pub fn run() {
         media::media_next,
         media::media_previous,
         plugins::list_plugins,
+        settings::get_all_plugin_settings,
+        settings::set_plugin_enabled,
+        settings::set_plugin_config,
     ]);
     #[cfg(not(target_os = "windows"))]
-    let builder = builder.invoke_handler(tauri::generate_handler![plugins::list_plugins]);
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        plugins::list_plugins,
+        settings::get_all_plugin_settings,
+        settings::set_plugin_enabled,
+        settings::set_plugin_config,
+    ]);
 
     builder
         .setup(|app| {

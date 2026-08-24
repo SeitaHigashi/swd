@@ -10,7 +10,12 @@
 //                                         // see "why right-anchored" in CLAUDE.md)
 //     styles: ["./style.css"],           // resolved relative to the plugin file
 //     permissions: { invoke: [...] },    // Tauri commands this plugin may call
-//     mount(ctx) { ... },                // build the card's contents
+//     configSchema: [                    // optional - rendered as a generic
+//       { key, label, type, options?, default },  // form by the settings
+//     ],                                 // window (see src/settings.js)
+//     mount(ctx) { ... },                // build the card's contents; ctx.config
+//                                         // holds this plugin's saved config,
+//                                         // merged over configSchema defaults
 //     unmount?(ctx) { ... },             // optional cleanup beyond what the
 //                                         // host already undoes automatically
 //   }
@@ -23,6 +28,7 @@ import { subscribe } from "./event-bus.js";
 import { applySavedPosition } from "./layout.js";
 import { makeDraggable } from "./drag.js";
 import { syncHitRegions } from "./hit-regions.js";
+import { resolveConfig } from "./config.js";
 
 const { invoke: tauriInvoke } = window.__TAURI__.core;
 
@@ -81,14 +87,18 @@ function makeScopedInvoke(plugin) {
   };
 }
 
+
 /**
  * Mounts one plugin into `container`. Returns a handle with `unmount()`.
  * @param {object} plugin
  * @param {HTMLElement} container
  * @param {string} [baseUrl] URL to resolve `plugin.styles` against (the
  *   plugin module's own URL - pass `import.meta.url` from the loader).
+ * @param {unknown} [savedConfig] Config saved from the settings window,
+ *   per `plugin.configSchema` - merged over that schema's defaults and
+ *   exposed to the plugin as `ctx.config`.
  */
-export function mountPlugin(plugin, container, baseUrl) {
+export function mountPlugin(plugin, container, baseUrl, savedConfig) {
   if (!plugin?.id || typeof plugin.mount !== "function") {
     throw new Error("[plugin-host] plugin must export { id, mount(ctx) }");
   }
@@ -120,6 +130,7 @@ export function mountPlugin(plugin, container, baseUrl) {
     },
     invoke: makeScopedInvoke(plugin),
     storage: makeStorage(plugin.id),
+    config: resolveConfig(plugin, savedConfig),
     onDestroy: (fn) => destroyCallbacks.push(fn),
   };
 

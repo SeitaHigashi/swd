@@ -9,6 +9,15 @@
 // late subscribers, so a plugin mounted between two `sys://stats` ticks
 // renders real data immediately instead of showing "--" for a full sample
 // interval.
+//
+// While the window is hidden (tray "Hide" or fully occluded by another
+// window - see visibility.js) handler dispatch is skipped entirely, so
+// idle cards stop doing DOM writes and canvas redraws for data nobody can
+// see. `last` still gets updated so the moment the window is visible
+// again every channel replays its latest payload and the UI catches up
+// in one frame instead of trickling in over the next few sample ticks.
+
+import { isHidden, onVisibilityChange } from "./visibility.js";
 
 const { listen } = window.__TAURI__.event;
 
@@ -25,18 +34,32 @@ function channel(name) {
   listen(name, (event) => {
     entry.last = event.payload;
     entry.hasLast = true;
-    for (const handler of entry.handlers) {
-      try {
-        handler(event.payload);
-      } catch (err) {
-        // One misbehaving plugin must not stop the others from updating.
-        console.error(`[event-bus] handler for "${name}" threw`, err);
-      }
-    }
+    if (isHidden()) return;
+    dispatch(name, entry, event.payload);
   });
   channels.set(name, entry);
   return entry;
 }
+
+function dispatch(name, entry, payload) {
+  for (const handler of entry.handlers) {
+    try {
+      handler(payload);
+    } catch (err) {
+      // One misbehaving plugin must not stop the others from updating.
+      console.error(`[event-bus] handler for "${name}" threw`, err);
+    }
+  }
+}
+
+// Catch every card up in one shot the moment the window becomes visible
+// again, instead of leaving it stale until the next backend tick.
+onVisibilityChange((hidden) => {
+  if (hidden) return;
+  for (const [name, entry] of channels) {
+    if (entry.hasLast) dispatch(name, entry, entry.last);
+  }
+});
 
 /**
  * Subscribes to a backend event. Returns an unsubscribe function.
