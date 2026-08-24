@@ -34,6 +34,28 @@ fn select_target_monitor(window: &tauri::WebviewWindow) -> Option<tauri::window:
     monitors.into_iter().max_by_key(|m| m.position().x)
 }
 
+#[cfg(test)]
+mod lib_tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn content_type_for_known_extensions() {
+        assert_eq!(content_type_for(Path::new("index.js")), "text/javascript");
+        assert_eq!(content_type_for(Path::new("index.mjs")), "text/javascript");
+        assert_eq!(content_type_for(Path::new("style.css")), "text/css");
+        assert_eq!(content_type_for(Path::new("plugin.json")), "application/json");
+        assert_eq!(content_type_for(Path::new("icon.png")), "image/png");
+        assert_eq!(content_type_for(Path::new("icon.svg")), "image/svg+xml");
+    }
+
+    #[test]
+    fn content_type_for_unknown_or_missing_extension_falls_back_to_octet_stream() {
+        assert_eq!(content_type_for(Path::new("data.bin")), "application/octet-stream");
+        assert_eq!(content_type_for(Path::new("README")), "application/octet-stream");
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()

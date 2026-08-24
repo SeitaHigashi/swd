@@ -88,14 +88,114 @@ pub fn resolve_plugin_file(app: &AppHandle, id: &str, relative_path: &str) -> Re
         .canonicalize()
         .map_err(|err| format!("unknown plugin \"{id}\": {err}"))?;
 
+    resolve_within_plugin_root(&plugin_root, relative_path)
+}
+
+/// The traversal-guarding half of `resolve_plugin_file`, split out so it
+/// can be unit tested against a plain temp directory instead of a live
+/// `AppHandle`.
+fn resolve_within_plugin_root(plugin_root: &Path, relative_path: &str) -> Result<PathBuf, String> {
     let candidate = plugin_root.join(relative_path.trim_start_matches('/'));
     let resolved = candidate
         .canonicalize()
         .map_err(|err| format!("file not found: {err}"))?;
 
-    if !resolved.starts_with(&plugin_root) {
+    if !resolved.starts_with(plugin_root) {
         return Err(format!("path escapes plugin directory: {relative_path}"));
     }
 
     Ok(resolved)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn write(path: &Path, contents: &str) {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(path, contents).unwrap();
+    }
+
+    #[test]
+    fn resolves_a_file_inside_the_plugin_root() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().canonicalize().unwrap();
+        write(&root.join("index.js"), "export default {};");
+
+        let resolved = resolve_within_plugin_root(&root, "index.js").unwrap();
+
+        assert_eq!(resolved, root.join("index.js"));
+    }
+
+    #[test]
+    fn resolves_a_nested_file_and_strips_a_leading_slash() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().canonicalize().unwrap();
+        write(&root.join("assets/icon.svg"), "<svg></svg>");
+
+        let resolved = resolve_within_plugin_root(&root, "/assets/icon.svg").unwrap();
+
+        assert_eq!(resolved, root.join("assets/icon.svg"));
+    }
+
+    #[test]
+    fn rejects_a_path_that_escapes_the_plugin_root_via_dot_dot() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root_dir = tmp.path().join("plugin-a");
+        let secret = tmp.path().join("secret.txt");
+        write(&secret, "top secret");
+        fs::create_dir_all(&root_dir).unwrap();
+        let root = root_dir.canonicalize().unwrap();
+
+        let err = resolve_within_plugin_root(&root, "../secret.txt").unwrap_err();
+
+        assert!(err.contains("escapes plugin directory"));
+    }
+
+    #[test]
+    fn reports_missing_files_as_not_found_rather_than_escaped() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().canonicalize().unwrap();
+
+        let err = resolve_within_plugin_root(&root, "does-not-exist.js").unwrap_err();
+
+        assert!(err.contains("file not found"));
+    }
+
+    #[test]
+    fn reads_a_valid_manifest() {
+        let tmp = tempfile::tempdir().unwrap();
+        write(
+            &tmp.path().join("plugin.json"),
+            r#"{"id":"clock","name":"Clock","entry":"index.js"}"#,
+        );
+
+        let manifest = read_manifest(tmp.path()).unwrap();
+
+        assert_eq!(manifest.id, "clock");
+        assert_eq!(manifest.name, "Clock");
+        assert_eq!(manifest.entry, "index.js");
+    }
+
+    #[test]
+    fn rejects_a_missing_manifest() {
+        let tmp = tempfile::tempdir().unwrap();
+
+        let err = read_manifest(tmp.path()).unwrap_err();
+
+        assert!(err.contains("could not read plugin.json"));
+    }
+
+    #[test]
+    fn rejects_a_malformed_manifest() {
+        let tmp = tempfile::tempdir().unwrap();
+        write(&tmp.path().join("plugin.json"), "{ not json");
+
+        let err = read_manifest(tmp.path()).unwrap_err();
+
+        assert!(err.contains("invalid plugin.json"));
+    }
 }

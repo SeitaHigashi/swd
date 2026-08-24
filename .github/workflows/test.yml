@@ -1,0 +1,25 @@
+name: Test
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+jobs:
+  cargo-test:
+    # Windows-only app (see src-tauri/src/lib.rs's target_os gates), so CI
+    # runs on the same platform it actually ships to.
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: src-tauri
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: cargo test --all-features
