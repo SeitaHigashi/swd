@@ -503,3 +503,45 @@ with a `.message` - a Tauri permission-denial rejects with a plain
 string, not an `Error`, which is exactly what produced the "undefined"
 in the first place and would silently do so again for any future
 permission issue.
+
+## 2026-08-24 — Two sessions built the same settings feature; kept dev's
+
+Started an independent branch to add per-widget detail toggles (e.g.
+"hide the network graph") plus a whole-card enable/disable, complete with
+its own settings window, `localStorage`-backed storage, and a Tauri event
+for cross-window sync. Opened a PR against `dev`. While it sat open,
+another already-merged branch shipped the *same feature* directly into
+`dev` (`42f3bb6`, refined by `08822c7`) - independently, with a different
+design: a Rust-side `settings.json` (race-guarded, avoids relying on
+whether `localStorage` is actually shared across separate webview
+windows - it is on this platform, but that was an assumption my branch
+never verified) and a generic typed `configSchema` (`boolean`/`select`/
+`number`/`text`) rather than booleans-only, exposed to a plugin as a
+plain resolved `ctx.config` object rather than `ctx.getSetting`/
+`ctx.onSettingChange`.
+
+Discovered this only when the PR came back `CONFLICTING` against `dev`.
+Rather than force both settings systems to coexist, discarded the whole
+losing branch (`git reset --hard origin/dev`) and re-added just what was
+still actually missing on top of dev's version: nobody had added a
+`configSchema` entry to `network`, `system-monitor`, or `media` yet, so
+the concrete "network graph on/off" ask was still undone even though the
+framework for it existed. Added `showGraph` (network), `showCpuGraph`/
+`showMemGraph` (system-monitor), `showThumbnail` (media), and `showDate`
+(clock, alongside its existing `hourFormat`) - four one-line
+`configSchema` entries plus a `ctx.config.<key>` check in each `mount()`.
+
+Hit the identical CSS bug the discarded branch had already found and
+fixed on its own dead-end: `canvas.hidden = true` relies on the UA
+`[hidden] { display: none }` rule, and `network`/`system-monitor`'s own
+CSS sets `display: block` on those canvases at higher specificity,
+silently winning. Same fix carried over: an explicit
+`#id .class[hidden] { display: none }` override in each stylesheet.
+`.date` and `.media-thumb` were never affected, having no author-level
+`display` rule to conflict with `[hidden]`.
+
+**Lesson for next time:** check `git log origin/dev` for related work
+*before* branching, not after opening a PR - `gh pr view <n> --json
+mergeable` would have surfaced the conflict immediately if checked right
+after dev moved, instead of only being noticed when asked to open a
+second, unrelated PR much later.

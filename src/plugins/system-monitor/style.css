@@ -40,3 +40,10 @@
   height: 36px;
   margin-top: 8px;
 }
+
+/* `display: block` above beats the UA `[hidden] { display: none }` rule
+   on specificity, so `canvas.hidden = true` (used to apply the "Show
+   CPU/memory graph" settings) would otherwise have no visible effect. */
+#system-monitor-card .metric-graph[hidden] {
+  display: none;
+}

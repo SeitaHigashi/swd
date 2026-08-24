@@ -1,14 +1,15 @@
 #network-card .net-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 20px;
   font-size: 15px;
   font-variant-numeric: tabular-nums;
-  margin-bottom: 8px;
 }
 
-#network-card .net-row:last-child {
-  margin-bottom: 0;
+#network-card .net-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 #network-card .net-arrow {
@@ -30,4 +31,11 @@
   width: 100%;
   height: 56px;
   margin-top: 12px;
+}
+
+/* `display: block` above beats the UA `[hidden] { display: none }` rule
+   on specificity, so `canvas.hidden = true` (used to apply the "Show
+   sparkline graph" setting) would otherwise have no visible effect. */
+#network-card .net-graph[hidden] {
+  display: none;
 }

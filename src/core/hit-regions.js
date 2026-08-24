@@ -6,6 +6,8 @@
 // which under the plugin system can happen at any time, not just at
 // startup, so this also watches the DOM instead of only wiring `resize`.
 
+import { isHidden, onVisibilityChange } from "./visibility.js";
+
 const { invoke } = window.__TAURI__.core;
 const { getCurrentWindow } = window.__TAURI__.window;
 
@@ -35,7 +37,15 @@ async function computeAndSend() {
 // Coalesce bursts (e.g. several plugins mounting back to back, or a drag
 // producing many pointermove-driven layout changes) into one IPC call.
 let pending = false;
+// No mouse input reaches a hidden or fully-occluded window anyway, so
+// there's nothing for hit regions to serve - skip the IPC round trip and
+// just remember to catch up once the window is visible again.
+let dirty = false;
 export function syncHitRegions() {
+  if (isHidden()) {
+    dirty = true;
+    return;
+  }
   if (pending) return;
   pending = true;
   queueMicrotask(() => {
@@ -43,6 +53,12 @@ export function syncHitRegions() {
     computeAndSend();
   });
 }
+
+onVisibilityChange((hidden) => {
+  if (hidden || !dirty) return;
+  dirty = false;
+  syncHitRegions();
+});
 
 /**
  * Starts watching `container` for anything that could change a card's

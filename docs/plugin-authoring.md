@@ -82,6 +82,15 @@ export default {
     invoke: ["some_command"], // optional. Tauri commands this plugin is
   },                           // allowed to call via ctx.invoke - see
                                // "Permissions" below.
+  configSchema: [              // optional. Declares per-plugin settings
+    {                           // shown as a generic form in the settings
+      key: "hourFormat",        // window (tray → Settings...) - see
+      label: "Hour format",     // "Configurable settings" below.
+      type: "select",
+      options: ["24h", "12h"],
+      default: "24h",
+    },
+  ],
   mount(ctx) { /* ... */ },   // required. Build the card's contents.
   unmount(ctx) { /* ... */ }, // optional. Extra cleanup beyond what the
                                // host already undoes automatically.
@@ -189,6 +198,67 @@ mount(ctx) {
   ctx.onDestroy(() => clearInterval(intervalId));
 }
 ```
+
+### `ctx.config`
+
+A plain object with this plugin's saved settings, read once at mount time
+- there is no live-update callback, because a config change just triggers
+an unmount + remount of your card (see "Configurable settings" below), so
+`mount(ctx)` runs again with the new value already in `ctx.config`:
+
+```js
+mount(ctx) {
+  const hour12 = ctx.config.hourFormat === "12h";
+}
+```
+
+Any key not present in what the user actually saved falls back to that
+field's `default` from `configSchema` - you never need to null-check a
+`configSchema` key inside `mount`.
+
+## Configurable settings
+
+Add `configSchema` to your plugin's default export to get a per-plugin
+settings form for free, with no UI code of your own:
+
+```js
+configSchema: [
+  { key: "hourFormat", label: "Hour format", type: "select", options: ["24h", "12h"], default: "24h" },
+],
+```
+
+Each field is `{ key, label, type, default, options? }`. `type` is one of
+`"boolean"` (checkbox), `"number"` (numeric input), `"select"` (dropdown -
+requires `options`), or `"string"` (falls back to text input for anything
+else). `key` is what shows up on `ctx.config` at mount time.
+
+This is entirely optional - a plugin with no `configSchema` still gets an
+on/off toggle in the settings window (see below), just no configurable
+fields under it.
+
+## The settings window
+
+Right-clicking the tray icon → **Settings...** opens a small window
+(`src/settings.html` / `src/settings/main.js`) listing every plugin -
+built-in and external, including ones already disabled - each with an
+on/off switch and, if it declared one, a form built from its
+`configSchema`. It has no special knowledge of any specific plugin; it
+only reads `plugin.id`, `plugin.name`, and `plugin.configSchema`.
+
+Both enabled state and config are persisted Rust-side to
+`<app config dir>/settings.json` (see `src-tauri/src/settings.rs`) rather
+than `localStorage`, since the settings window and the dashboard are
+separate webviews and shouldn't have to assume they share storage.
+Toggling a plugin off, or changing one of its fields, broadcasts a
+`settings://changed` event; the dashboard (`src/main.js`) reacts by
+unmounting that plugin and, if still enabled, remounting it with the new
+config - no app restart needed.
+
+If your plugin needs to react to its own config changing while mounted
+(rather than just being remounted with the new value), it can also
+subscribe directly: `ctx.on("settings://changed", (payload) => { if
+(payload.id === plugin.id) { /* ... */ } })` - but for most cards, letting
+the host's remount-on-change behavior handle it is simpler.
 
 ## Styling
 

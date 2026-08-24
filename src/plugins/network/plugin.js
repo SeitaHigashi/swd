@@ -18,16 +18,19 @@ export default {
   name: "Network",
   position: { top: 460, right: 32 },
   styles: ["./style.css"],
+  configSchema: [{ key: "showGraph", label: "Show sparkline graph", type: "boolean", default: true }],
   mount(ctx) {
     ctx.root.innerHTML = `
       <h2>Network</h2>
       <div class="net-row">
-        <span class="net-arrow up">&#x25B2;</span>
-        <span id="net-up">-- KB/s</span>
-      </div>
-      <div class="net-row">
-        <span class="net-arrow down">&#x25BC;</span>
-        <span id="net-down">-- KB/s</span>
+        <span class="net-item">
+          <span class="net-arrow up">&#x25B2;</span>
+          <span id="net-up">-- KB/s</span>
+        </span>
+        <span class="net-item">
+          <span class="net-arrow down">&#x25BC;</span>
+          <span id="net-down">-- KB/s</span>
+        </span>
       </div>
       <canvas id="net-graph" class="net-graph" width="256" height="56"></canvas>
     `;
@@ -35,6 +38,8 @@ export default {
     const upEl = ctx.el("#net-up");
     const downEl = ctx.el("#net-down");
     const graphEl = ctx.el("#net-graph");
+
+    if (graphEl) graphEl.hidden = !ctx.config.showGraph;
 
     const rxHistory = [];
     const txHistory = [];

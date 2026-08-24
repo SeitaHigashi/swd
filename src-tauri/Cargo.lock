@@ -3693,6 +3693,7 @@ dependencies = [
  "tauri-plugin-autostart",
  "tauri-plugin-http",
  "tauri-plugin-opener",
+ "tempfile",
  "windows 0.61.3",
 ]
 
