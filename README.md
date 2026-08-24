@@ -1,11 +1,13 @@
-# SWD (Seita Windows Dashboard)
+# SWD (Simple Windows Dashboard)
 
 <img src="docs/images/icon.png" alt="SWD icon" width="128" height="128" />
 
-An always-on Windows 11 desktop widget. Renders a glass-morphism system
-dashboard (clock, CPU/memory, network, now-playing media, plus whatever
-plugins are installed) pinned above the desktop wallpaper (Wallpaper
-Engine) and below the desktop icons.
+A lightweight, always-on Windows 11 desktop widget. Renders a
+glass-morphism system dashboard (clock, CPU/memory, network, now-playing
+media, plus whatever plugins are installed) pinned above the desktop
+wallpaper (Wallpaper Engine) and below the desktop icons. No bundler, no
+frontend framework, no background services beyond the sampling threads it
+needs for its own cards.
 
 The reasoning behind non-obvious decisions lives in
 [docs/history.md](docs/history.md); a quick-reference for anyone (human
