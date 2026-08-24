@@ -4,15 +4,21 @@ Guidance for Claude Code (or any coding agent) working in this repository.
 
 ## What this is
 
-SWD (Seita Windows Dashboard): a Windows 11 always-on desktop widget built
-with Tauri v2. It renders a transparent, glass-morphism dashboard (clock,
-CPU/memory, network, now-playing media) pinned above the desktop wallpaper
-(Wallpaper Engine) and below the desktop icons, using a self-implemented
-Win32 WorkerW z-order trick rather than any existing "desktop wallpaper
-window" plugin. See [docs/history.md](docs/history.md) for the full
-reasoning behind that choice and the bugs hit along the way — read it
-before touching `window_layer.rs` or `hit_test.rs`, it will save you from
-re-making mistakes already made and fixed once.
+SWD (Simple Windows Dashboard): a lightweight Windows 11 always-on desktop
+widget built with Tauri v2. It renders a transparent, glass-morphism
+dashboard (clock, CPU/memory, network, now-playing media) pinned above the
+desktop wallpaper (Wallpaper Engine) and below the desktop icons, using a
+self-implemented Win32 WorkerW z-order trick rather than any existing
+"desktop wallpaper window" plugin. See [docs/history.md](docs/history.md)
+for the full reasoning behind that choice and the bugs hit along the way —
+read it before touching `window_layer.rs` or `hit_test.rs`, it will save
+you from re-making mistakes already made and fixed once.
+
+Stay lightweight: no bundler, no frontend framework, no per-widget
+background polling loops beyond what `system_info.rs`/`media.rs` already
+run on dedicated threads. Prefer a small addition over a new dependency —
+check `package.json` and `src-tauri/Cargo.toml` before reaching for a new
+crate or npm package.
 
 **Windows-only.** Everything platform-specific is behind
 `#[cfg(target_os = "windows")]` module gates in `src-tauri/src/lib.rs`, so
