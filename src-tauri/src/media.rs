@@ -124,8 +124,46 @@ fn current_session() -> Option<MediaSession> {
     manager.GetCurrentSession().ok()
 }
 
-fn poll_now_playing() -> Option<NowPlaying> {
-    let session = current_session()?;
+/// Bounds how many distinct tracks' artwork stay cached at once (e.g.
+/// shuffle/repeat revisiting recent tracks), keeping worst-case cache
+/// memory a small, fixed multiple of `MAX_THUMBNAIL_BYTES` instead of
+/// growing with however many different tracks have played this session.
+const MAX_CACHED_TRACKS: usize = 8;
+
+/// Caches thumbnails by (title, artist) so unchanged or recently-seen
+/// tracks don't re-read and re-base64-encode the artwork (up to
+/// `MAX_THUMBNAIL_BYTES`, i.e. several MB) on every poll. Without this,
+/// continuous playback re-churns large, variably-sized allocations every
+/// `FALLBACK_POLL_INTERVAL`/event indefinitely, which fragments the
+/// process heap over long uptimes even though nothing is technically
+/// leaked. Least-recently-used eviction, capped at `MAX_CACHED_TRACKS`.
+#[derive(Default)]
+struct ThumbnailCache {
+    /// Most-recently-used entry at the back.
+    entries: std::collections::VecDeque<((String, String), Option<String>)>,
+}
+
+impl ThumbnailCache {
+    fn get(&mut self, key: &(String, String)) -> Option<Option<String>> {
+        let pos = self.entries.iter().position(|(k, _)| k == key)?;
+        let entry = self.entries.remove(pos).unwrap();
+        let value = entry.1.clone();
+        self.entries.push_back(entry);
+        Some(value)
+    }
+
+    fn insert(&mut self, key: (String, String), value: Option<String>) {
+        if let Some(pos) = self.entries.iter().position(|(k, _)| k == &key) {
+            self.entries.remove(pos);
+        }
+        self.entries.push_back((key, value));
+        while self.entries.len() > MAX_CACHED_TRACKS {
+            self.entries.pop_front();
+        }
+    }
+}
+
+fn poll_now_playing(session: &MediaSession, cache: &mut ThumbnailCache) -> Option<NowPlaying> {
     let properties = session.TryGetMediaPropertiesAsync().ok()?.get().ok()?;
     let status = session.GetPlaybackInfo().ok()?.PlaybackStatus().ok()?;
 
@@ -133,12 +171,22 @@ fn poll_now_playing() -> Option<NowPlaying> {
     if title.is_empty() {
         return None;
     }
+    let artist = properties.Artist().map(|s| s.to_string_lossy()).unwrap_or_default();
+
+    let key = (title.clone(), artist.clone());
+    let thumbnail_data_url = if let Some(cached) = cache.get(&key) {
+        cached
+    } else {
+        let data_url = read_thumbnail(&properties);
+        cache.insert(key, data_url.clone());
+        data_url
+    };
 
     Some(NowPlaying {
         title,
-        artist: properties.Artist().map(|s| s.to_string_lossy()).unwrap_or_default(),
+        artist,
         status: playback_status_label(status).to_string(),
-        thumbnail_data_url: read_thumbnail(&properties),
+        thumbnail_data_url,
     })
 }
 
@@ -259,15 +307,18 @@ pub fn start_media_monitor(app: AppHandle) {
             // in a locked-down environment) — fall back to poll-only so
             // the card at least still works, just without instant updates.
             eprintln!("[media] failed to acquire session manager; falling back to poll-only mode");
+            let mut cache = ThumbnailCache::default();
             loop {
                 match rx.recv_timeout(FALLBACK_POLL_INTERVAL) {
                     Ok(MediaEvent::Command(command)) => {
                         apply_command(command);
-                        let _ = app.emit(NOW_PLAYING_EVENT, poll_now_playing());
+                        let now_playing = current_session().and_then(|s| poll_now_playing(&s, &mut cache));
+                        let _ = app.emit(NOW_PLAYING_EVENT, now_playing);
                     }
                     Ok(_) => {}
                     Err(RecvTimeoutError::Timeout) => {
-                        let _ = app.emit(NOW_PLAYING_EVENT, poll_now_playing());
+                        let now_playing = current_session().and_then(|s| poll_now_playing(&s, &mut cache));
+                        let _ = app.emit(NOW_PLAYING_EVENT, now_playing);
                     }
                     Err(RecvTimeoutError::Disconnected) => return,
                 }
@@ -290,27 +341,39 @@ pub fn start_media_monitor(app: AppHandle) {
         let mut current: Option<(MediaSession, SessionTokens)> = None;
         resubscribe_current_session(&manager, &tx, &mut current);
 
+        let mut cache = ThumbnailCache::default();
+        // Re-fetches the session from `manager` (already held on this
+        // thread) rather than requesting a brand new session manager from
+        // WinRT on every tick, and reuses `cache` so an unchanged track
+        // doesn't get its artwork re-read/re-encoded every poll.
+        let poll = |manager: &MediaSessionManager, cache: &mut ThumbnailCache| {
+            manager
+                .GetCurrentSession()
+                .ok()
+                .and_then(|session| poll_now_playing(&session, cache))
+        };
+
         // Emit initial state immediately rather than waiting for the first
         // event or fallback poll tick.
-        let _ = app.emit(NOW_PLAYING_EVENT, poll_now_playing());
+        let _ = app.emit(NOW_PLAYING_EVENT, poll(&manager, &mut cache));
 
         loop {
             match rx.recv_timeout(FALLBACK_POLL_INTERVAL) {
                 Ok(MediaEvent::Command(command)) => {
                     apply_command(command);
-                    let _ = app.emit(NOW_PLAYING_EVENT, poll_now_playing());
+                    let _ = app.emit(NOW_PLAYING_EVENT, poll(&manager, &mut cache));
                 }
                 Ok(MediaEvent::SessionStateChanged) => {
-                    let _ = app.emit(NOW_PLAYING_EVENT, poll_now_playing());
+                    let _ = app.emit(NOW_PLAYING_EVENT, poll(&manager, &mut cache));
                 }
                 Ok(MediaEvent::SessionsChanged) => {
                     resubscribe_current_session(&manager, &tx, &mut current);
-                    let _ = app.emit(NOW_PLAYING_EVENT, poll_now_playing());
+                    let _ = app.emit(NOW_PLAYING_EVENT, poll(&manager, &mut cache));
                 }
                 // Safety net: some apps don't fire SMTC events reliably,
                 // so re-check periodically even without a signal.
                 Err(RecvTimeoutError::Timeout) => {
-                    let _ = app.emit(NOW_PLAYING_EVENT, poll_now_playing());
+                    let _ = app.emit(NOW_PLAYING_EVENT, poll(&manager, &mut cache));
                 }
                 Err(RecvTimeoutError::Disconnected) => break,
             }
