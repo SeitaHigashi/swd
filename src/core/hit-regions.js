@@ -76,4 +76,14 @@ export function startHitRegionWatcher(container) {
   });
 
   new ResizeObserver(syncHitRegions).observe(document.body);
+
+  // `body` is always window-sized, so it never fires when a card's own
+  // content changes size (track title wrapping, a graph toggled, ...).
+  // Observe each card directly, including ones mounted later.
+  const cardObserver = new ResizeObserver(syncHitRegions);
+  const observeCards = () => {
+    container.querySelectorAll(".glass-card").forEach((el) => cardObserver.observe(el));
+  };
+  observeCards();
+  new MutationObserver(observeCards).observe(container, { childList: true });
 }

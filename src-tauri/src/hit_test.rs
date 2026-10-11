@@ -39,14 +39,14 @@ pub fn set_hit_regions(rects: Vec<HitRect>) {
     *HIT_REGIONS.lock().unwrap() = rects;
 }
 
-/// Polls the cursor position ~30 times per second and flips
+/// Polls the cursor position ~~100 times per second and flips
 /// `ignore_cursor_events` only on transitions, so it costs nothing while
 /// the cursor stays on one side of a card boundary.
 pub fn start_hit_test_loop(app: AppHandle) {
     std::thread::spawn(move || {
         let mut last_ignore = true;
         loop {
-            std::thread::sleep(Duration::from_millis(30));
+            std::thread::sleep(Duration::from_millis(10));
 
             let mut point = POINT::default();
             if unsafe { GetCursorPos(&mut point) }.is_err() {
