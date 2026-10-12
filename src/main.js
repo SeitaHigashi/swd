@@ -46,6 +46,18 @@ window.addEventListener("DOMContentLoaded", async () => {
   // during startup instead of once at the end.
   startHitRegionWatcher(dashboard);
 
+  // The window ignores activation on click (WS_EX_NOACTIVATE) so the first
+  // click isn't swallowed by window activation; text inputs are the one
+  // exception, since they need the window active to receive keystrokes.
+  const { invoke } = window.__TAURI__.core;
+  const isTextField = (el) => el instanceof HTMLElement && el.matches("input, textarea, [contenteditable]");
+  document.addEventListener("focusin", (e) => {
+    if (isTextField(e.target)) invoke("focus_widget", { focused: true }).catch(() => {});
+  });
+  document.addEventListener("focusout", (e) => {
+    if (isTextField(e.target)) invoke("focus_widget", { focused: false }).catch(() => {});
+  });
+
   // The settings window (src/settings.js) emits this after every
   // enable/disable/config change, so a toggle there takes effect
   // immediately instead of requiring a restart.

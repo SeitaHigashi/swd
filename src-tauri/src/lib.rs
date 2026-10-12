@@ -120,6 +120,7 @@ pub fn run() {
     #[cfg(target_os = "windows")]
     let builder = builder.invoke_handler(tauri::generate_handler![
         hit_test::set_hit_regions,
+        window_layer::focus_widget,
         media::media_toggle_play_pause,
         media::media_next,
         media::media_previous,
@@ -172,6 +173,7 @@ pub fn run() {
             {
                 let handle = app.handle().clone();
                 window_layer::pin_to_desktop_layer(&handle);
+                window_layer::set_no_activate(&handle, true);
                 window_layer::start_layer_watcher(handle.clone());
                 hit_test::start_hit_test_loop(handle.clone());
                 media::start_media_monitor(handle);

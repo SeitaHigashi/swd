@@ -28,9 +28,9 @@ use windows::core::{w, BOOL};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, TRUE, WPARAM};
 use windows::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, FindWindowExW, FindWindowW, RegisterWindowMessageW, SendMessageTimeoutW,
-    SetWindowPos, SMTO_NORMAL, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, WM_DISPLAYCHANGE,
-    WM_DPICHANGED,
+    EnumWindows, FindWindowExW, FindWindowW, GetWindowLongPtrW, RegisterWindowMessageW,
+    SendMessageTimeoutW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, SMTO_NORMAL,
+    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, WM_DISPLAYCHANGE, WM_DPICHANGED, WS_EX_NOACTIVATE,
 };
 
 /// Undocumented message that makes explorer.exe spawn the WorkerW window
@@ -242,4 +242,51 @@ fn start_fallback_poll(app: AppHandle) {
         std::thread::sleep(Duration::from_secs(60));
         pin_to_desktop_layer(&app);
     });
+}
+
+/// Sets or clears `WS_EX_NOACTIVATE` on the main window.
+///
+/// With the style set, a click on the widget is delivered to the webview
+/// without first activating the window, so the first click after using
+/// another app is no longer spent on activation (and the window no longer
+/// gets raised out of its desktop layer by being activated). Text inputs
+/// need real activation to receive keyboard input, so the frontend asks
+/// for it only while one of them is focused (see `focus_widget`).
+pub fn set_no_activate(app: &AppHandle, enabled: bool) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    let Ok(hwnd) = window.hwnd() else {
+        return;
+    };
+    // Style changes go through the main thread so they serialize with
+    // tao's own read-modify-write of the ex-style (used by
+    // `set_ignore_cursor_events`) instead of racing it.
+    let raw = hwnd.0 as isize;
+    let _ = window.run_on_main_thread(move || unsafe {
+        let hwnd = HWND(raw as *mut _);
+        let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        let flag = WS_EX_NOACTIVATE.0 as isize;
+        let next = if enabled { style | flag } else { style & !flag };
+        if next != style {
+            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, next);
+        }
+    });
+}
+
+/// Called by the frontend when a text input gains/loses focus. Gaining
+/// focus temporarily allows activation and brings the window to the
+/// foreground so typing works; losing it restores click-without-activate.
+#[tauri::command]
+pub fn focus_widget(app: AppHandle, focused: bool) {
+    if focused {
+        set_no_activate(&app, false);
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.set_focus();
+        }
+        // Activation raises the window; put it back in the desktop layer.
+        pin_to_desktop_layer(&app);
+    } else {
+        set_no_activate(&app, true);
+    }
 }
