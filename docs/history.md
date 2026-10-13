@@ -581,3 +581,15 @@ default browser via `tauri-plugin-opener` and denies the in-app window.
 `"create": false` on the `main` entry in `tauri.conf.json` - **don't drop
 that flag**, or Tauri creates a second `main` window from the config too.
 Non-http(s) schemes are ignored on purpose.
+
+### Webpage widget: bottom edge no longer clipped, scrollbar hiding is a setting
+
+The scrollbar-hiding trick oversized the iframe by 24px in both axes, which
+clipped the bottom 24px of every page (and the right 24px of pages that
+don't scroll, since the scrollbar the width oversize is meant to hide isn't
+there). Height is now always `100%`: a horizontal scrollbar is rare and the
+cost was paid on every page. The width oversize moved behind a
+"Hide scrollbar (clips right edge)" setting (`hideScrollbar`, default on to
+keep prior behaviour). For a page you control, hide its own scrollbar
+(`html { scrollbar-width: none }` and `::-webkit-scrollbar { display: none }`)
+and turn the setting off to get the full width.
