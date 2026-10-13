@@ -95,7 +95,8 @@ src/
     ├── clock/{plugin.js, style.css}
     ├── system-monitor/{plugin.js, style.css}  # CPU/mem card
     ├── network/{plugin.js, style.css}          # uses shared/sparkline.js
-    └── media/{plugin.js, style.css}             # now-playing card
+    ├── media/{plugin.js, style.css}             # now-playing card
+    └── webpage/{plugin.js, style.css}           # iframe embed, optional transparent bg
 ```
 
 ### Per-widget on/off + settings

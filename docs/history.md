@@ -545,3 +545,27 @@ silently winning. Same fix carried over: an explicit
 mergeable` would have surfaced the conflict immediately if checked right
 after dev moved, instead of only being noticed when asked to open a
 second, unrelated PR much later.
+
+## 2026-10-13 — Webpage widget (`webpage-card`)
+
+A built-in card (`src/plugins/webpage/`) embeds a user-supplied http(s) URL
+in an `<iframe>`; URL/size/transparency are `configSchema` fields.
+
+- **Transparency.** The main window is already `transparent: true` and CSP
+  is `null`, so the work is just stripping the card's glass layers
+  (`.transparent` class) and leaving the iframe unpainted. The catch is
+  `color-scheme`: an iframe whose element-level scheme differs from the
+  embedded document's root scheme is given an opaque canvas. First cut forced
+  `normal`, which broke pages declaring `:root { color-scheme: dark }` (the
+  user's own page) - so it's now the "Page color scheme" setting
+  (dark/light), default dark, applied inline on the iframe.
+- **Drag handle.** An iframe swallows pointer events, so the card body can't
+  start a drag; a 14px strip above it bubbles `pointerdown` to the card and
+  `drag.js` works unchanged.
+- **Known limits (not fixable from an iframe).** Sites sending
+  `X-Frame-Options`/`frame-ancestors` refuse to render; pages with an opaque
+  `<body>` background stay opaque (cross-origin CSS can't be overridden). A
+  Tauri child webview (`add_child`, unstable feature) with an injected
+  init script would lift both but was judged too heavy for now.
+- Only `http:`/`https:` URLs are accepted; empty/invalid URL hides the card
+  so a fresh install shows nothing new.

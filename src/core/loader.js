@@ -8,6 +8,7 @@ import systemMonitorPlugin from "../plugins/system-monitor/plugin.js";
 import networkPlugin from "../plugins/network/plugin.js";
 import mediaPlugin from "../plugins/media/plugin.js";
 import storagePlugin from "../plugins/storage/plugin.js";
+import webpagePlugin from "../plugins/webpage/plugin.js";
 
 const { invoke } = window.__TAURI__.core;
 
@@ -17,6 +18,7 @@ const BUILT_IN_PLUGINS = [
   { plugin: networkPlugin, baseUrl: new URL("../plugins/network/plugin.js", import.meta.url).href },
   { plugin: mediaPlugin, baseUrl: new URL("../plugins/media/plugin.js", import.meta.url).href },
   { plugin: storagePlugin, baseUrl: new URL("../plugins/storage/plugin.js", import.meta.url).href },
+  { plugin: webpagePlugin, baseUrl: new URL("../plugins/webpage/plugin.js", import.meta.url).href },
 ];
 
 /**

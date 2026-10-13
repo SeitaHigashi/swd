@@ -1,0 +1,44 @@
+#webpage-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+#webpage-card .webpage-handle {
+  height: 14px;
+  cursor: grab;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Cross-origin page scrollbars can't be styled from here, so hide them by
+   oversizing the iframe past the viewport edge (wider than any classic
+   scrollbar) and clipping the overflow. Wheel/touch scrolling still works. */
+#webpage-card .webpage-viewport {
+  position: relative;
+  overflow: hidden;
+}
+
+#webpage-card .webpage-frame {
+  display: block;
+  width: calc(100% + 24px);
+  height: calc(100% + 24px);
+  border: 0;
+  background: transparent;
+  /* color-scheme is set inline from the "Page color scheme" setting: it
+     must equal the embedded page's own scheme or the iframe gets an
+     opaque canvas (see plugin.js). */
+}
+
+/* Transparent mode: strip every glass-card layer so only the page paints.
+   The handle stays (nearly invisible) so the card can still be dragged -
+   an iframe swallows pointer events, so the card body can't be the handle. */
+#webpage-card.transparent {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+#webpage-card.transparent .webpage-handle {
+  background: rgba(255, 255, 255, 0.04);
+}
