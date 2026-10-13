@@ -139,7 +139,6 @@ pub fn run() {
 
     builder
         .setup(|app| {
-            use tauri::Manager;
             use tauri_plugin_autostart::ManagerExt;
 
             // This is meant to run as an always-on desktop widget, so make
@@ -149,9 +148,31 @@ pub fn run() {
                 eprintln!("[autostart] failed to register for login launch: {err:?}");
             }
 
-            let window = app
-                .get_webview_window("main")
-                .expect("main window must exist");
+            // Created here (config has `"create": false`) rather than by
+            // tauri.conf.json because `on_new_window` only exists on the
+            // builder. Links with `target="_blank"` / `window.open` inside an
+            // embedded page (the webpage card's iframe) land here: send
+            // http(s) ones to the default browser and never open a second
+            // in-app window. Other schemes are dropped - a remote page
+            // shouldn't be able to launch arbitrary protocol handlers.
+            let main_config = app
+                .config()
+                .app
+                .windows
+                .iter()
+                .find(|w| w.label == "main")
+                .expect("main window config must exist")
+                .clone();
+            let opener_handle = app.handle().clone();
+            let window = tauri::WebviewWindowBuilder::from_config(app.handle(), &main_config)?
+                .on_new_window(move |url, _features| {
+                    use tauri_plugin_opener::OpenerExt;
+                    if matches!(url.scheme(), "http" | "https") {
+                        let _ = opener_handle.opener().open_url(url.as_str(), None::<&str>);
+                    }
+                    tauri::webview::NewWindowResponse::Deny
+                })
+                .build()?;
 
             if let Some(monitor) = select_target_monitor(&window) {
                 let size = *monitor.size();

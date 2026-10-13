@@ -55,7 +55,7 @@ export default {
       <div class="webpage-handle" title="Drag to move"></div>
       <div class="webpage-viewport">
         <iframe class="webpage-frame"
-          sandbox="allow-scripts allow-same-origin allow-forms"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
           referrerpolicy="no-referrer"></iframe>
       </div>
     `;

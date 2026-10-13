@@ -569,3 +569,15 @@ in an `<iframe>`; URL/size/transparency are `configSchema` fields.
   init script would lift both but was judged too heavy for now.
 - Only `http:`/`https:` URLs are accepted; empty/invalid URL hides the card
   so a fresh install shows nothing new.
+
+### Webpage widget: `target="_blank"` opens in the default browser
+
+Embedded pages can't be intercepted from the parent (cross-origin), so this
+is done natively: the iframe sandbox gets `allow-popups` (without it
+`_blank` links are silently swallowed), and the main window is now built in
+`lib.rs` setup with `on_new_window`, which sends `http(s)` URLs to the
+default browser via `tauri-plugin-opener` and denies the in-app window.
+`on_new_window` exists only on the window builder, hence
+`"create": false` on the `main` entry in `tauri.conf.json` - **don't drop
+that flag**, or Tauri creates a second `main` window from the config too.
+Non-http(s) schemes are ignored on purpose.
