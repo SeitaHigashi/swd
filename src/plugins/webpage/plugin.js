@@ -17,6 +17,10 @@ export default {
     { key: "width", label: "Width (px)", type: "number", default: 480 },
     { key: "height", label: "Height (px)", type: "number", default: 320 },
     { key: "transparent", label: "Transparent background", type: "boolean", default: true },
+    // Hides the embedded page's scrollbar by clipping 24px off its right edge,
+    // which also clips any page content there. Turn off for pages that hide
+    // their own scrollbar (or fit without scrolling) to show the full width.
+    { key: "hideScrollbar", label: "Hide scrollbar (clips right edge)", type: "boolean", default: true },
     // Must match the embedded page's own `color-scheme` (its `:root`
     // declaration, or `prefers-color-scheme` handling): when they differ,
     // the browser paints the iframe an opaque canvas and transparency is
@@ -31,7 +35,7 @@ export default {
     },
   ],
   mount(ctx) {
-    const { url, width, height, transparent, pageColorScheme } = ctx.config;
+    const { url, width, height, transparent, hideScrollbar, pageColorScheme } = ctx.config;
 
     // Only http(s): a `javascript:`/`file:` URL here would be a footgun,
     // not a feature. An unset/invalid URL hides the card entirely so a
@@ -49,6 +53,7 @@ export default {
     }
 
     ctx.root.classList.toggle("transparent", !!transparent);
+    ctx.root.classList.toggle("hide-scrollbar", !!hideScrollbar);
     ctx.root.style.width = `${Math.max(120, Number(width) || 480)}px`;
 
     ctx.root.innerHTML = `
